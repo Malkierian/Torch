@@ -46,15 +46,23 @@ class AnimCodeExporter : public BaseExporter {
                         YAML::Node& node, std::string* replacement) override;
 };
 
+class AnimModdingExporter : public BaseExporter {
+    ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
+                        YAML::Node& node, std::string* replacement) override;
+};
+
 class AnimFactory : public BaseFactory {
   public:
     std::optional<std::shared_ptr<IParsedData>> parse(std::vector<uint8_t>& buffer, YAML::Node& data) override;
+    std::optional<std::shared_ptr<IParsedData>> parse_modding(std::vector<uint8_t>& buffer, YAML::Node& data) override;
     inline std::unordered_map<ExportType, std::shared_ptr<BaseExporter>> GetExporters() override {
         return { 
             REGISTER(Code, AnimCodeExporter) 
             REGISTER(Header, AnimHeaderExporter)                     
             REGISTER(Binary, AnimBinaryExporter) 
+            REGISTER(Modding, AnimModdingExporter) 
         };
     }
+    bool SupportModdedAssets() override { return true; }
 };
 } // namespace BK64

@@ -82,7 +82,13 @@
 #ifdef BK64_SUPPORT
 #include "factories/bk64/AnimFactory.h"
 #include "factories/bk64/BKAssetFactory.h"
+#include "factories/bk64/DemoInputFactory.h"
+#include "factories/bk64/DialogFactory.h"
+#include "factories/bk64/GeoLayoutFactory.h"
+#include "factories/bk64/GruntyQuestionFactory.h"
+#include "factories/bk64/QuizQuestionFactory.h"
 #include "factories/bk64/SpriteFactory.h"
+#include "factories/bk64/ModelFactory.h"
 #endif
 
 #ifdef MARIO_ARTIST_SUPPORT
@@ -206,6 +212,12 @@ void Companion::Init(const ExportType type) {
 #ifdef BK64_SUPPORT
     this->RegisterFactory("BK64:ANIM", std::make_shared<BK64::AnimFactory>());
     this->RegisterFactory("BK64:ASSET_TABLE", std::make_shared<BK64::BKAssetFactory>());
+    this->RegisterFactory("BK64:DEMO", std::make_shared<BK64::DemoInputFactory>());
+    this->RegisterFactory("BK64:DIALOG", std::make_shared<BK64::DialogFactory>());
+    this->RegisterFactory("BK64:GEO_LAYOUT", std::make_shared<BK64::GeoLayoutFactory>());
+    this->RegisterFactory("BK64:GRUNTYQ", std::make_shared<BK64::GruntyQuestionFactory>());
+    this->RegisterFactory("BK64:QUIZQ", std::make_shared<BK64::QuizQuestionFactory>());
+    this->RegisterFactory("BK64:MODEL", std::make_shared<BK64::ModelFactory>());
     this->RegisterFactory("BK64:SPRITE", std::make_shared<BK64::SpriteFactory>());
 #endif
 
@@ -599,79 +611,7 @@ void Companion::ProcessTables(YAML::Node& rom) {
     }
 }
 
-void Companion::ProcessFile(YAML::Node root) {
-    // Set compressed file offsets and compression type
-    if (auto segments = root[":config"]["segments"]) {
-        if (segments.IsSequence() && segments.size() > 0) {
-            if (segments[0].IsSequence() && segments[0].size() == 2) {
-                gCurrentSegmentNumber = segments[0][0].as<uint32_t>();
-                gCurrentFileOffset = segments[0][1].as<uint32_t>();
-                gCurrentCompressionType = Decompressor::GetCompressionType(this->gRomData, gCurrentFileOffset);
-                if(root[":config"]["no_compression"]) {
-                    gCurrentCompressionType = CompressionType::None;
-                }
-            } else {
-                throw std::runtime_error("Incorrect yaml syntax for segments.\n\nThe yaml expects:\n:config:\n  segments:\n  - [<segment>, <file_offset>]\n\nLike so:\nsegments:\n  - [0x06, 0x821D10]");
-            }
-        }
-    }
-
-    for(auto asset = root.begin(); asset != root.end(); ++asset){
-        auto node = asset->second;
-        auto entryName = asset->first.as<std::string>();
-        auto output = (this->gCurrentDirectory / entryName).string();
-        std::replace(output.begin(), output.end(), '\\', '/');
-
-        if(node["type"]){
-            const auto type = GetTypeNode(node);
-            if(type == "NAUDIO:V0:SAMPLE"){
-                AudioManager::Instance->bind_sample(node, output);
-            }
-        }
-
-        if(!node["offset"])  {
-            continue;
-        }
-
-        if(gCurrentSegmentNumber) {
-            if (IS_SEGMENTED(node["offset"].as<uint32_t>()) == false) {
-                node["offset"] = (gCurrentSegmentNumber << 24) | node["offset"].as<uint32_t>();
-            }
-        }
-
-        if(!gCurrentVirtualPath.empty()) {
-            node["path"] = gCurrentVirtualPath;
-        }
-
-        this->gAddrMap[this->gCurrentFile][node["offset"].as<uint32_t>()] = std::make_tuple(output, node);
-    }
-
-    // Stupid hack because the iteration broke the assets
-    root = YAML::LoadFile(this->gCurrentFile);
-    this->gConfig.segment.local.clear();
-    this->gFileHeader.clear();
-    this->gCurrentPad = 0;
-    this->gCurrentVram = std::nullopt;
-    this->gCurrentVirtualPath = "";
-    this->gCurrentSegmentNumber = 0;
-    this->gCurrentCompressionType = CompressionType::None;
-    this->gCurrentFileOffset = 0;
-    this->gTables.clear();
-    this->gCurrentExternalFiles.clear();
-    GFXDOverride::ClearVtx();
-
-    if(root[":config"]) {
-        this->ParseCurrentFileConfig(root[":config"]);
-    }
-
-    if(!this->NodeHasChanges(this->gCurrentFile) && !this->gNodeForceProcessing) {
-        return;
-    }
-
-    spdlog::set_pattern(regular);
-    SPDLOG_INFO("------------------------------------------------");
-    spdlog::set_pattern(line);
-
+void Companion::ProcessParseFile(YAML::Node root) {
     for(auto asset = root.begin(); asset != root.end(); ++asset){
 
         auto entryName = asset->first.as<std::string>();
@@ -704,7 +644,9 @@ void Companion::ProcessFile(YAML::Node root) {
         SPDLOG_INFO("------------------------------------------------");
         spdlog::set_pattern(line);
     }
+}
 
+void Companion::ProcessExportFile() {
     for(auto& result : this->gParseResults[this->gCurrentFile]){
         std::ostringstream stream;
         ExportResult endptr = std::nullopt;
@@ -1007,6 +949,86 @@ void Companion::ProcessFile(YAML::Node root) {
     }
 }
 
+void Companion::ProcessFile(YAML::Node root) {
+    // Set compressed file offsets and compression type
+    if (auto segments = root[":config"]["segments"]) {
+        if (segments.IsSequence() && segments.size() > 0) {
+            if (segments[0].IsSequence() && segments[0].size() == 2) {
+                gCurrentSegmentNumber = segments[0][0].as<uint32_t>();
+                gCurrentFileOffset = segments[0][1].as<uint32_t>();
+                gCurrentCompressionType = Decompressor::GetCompressionType(this->gRomData, gCurrentFileOffset);
+                if(root[":config"]["no_compression"]) {
+                    gCurrentCompressionType = CompressionType::None;
+                }
+            } else {
+                throw std::runtime_error("Incorrect yaml syntax for segments.\n\nThe yaml expects:\n:config:\n  segments:\n  - [<segment>, <file_offset>]\n\nLike so:\nsegments:\n  - [0x06, 0x821D10]");
+            }
+        }
+    }
+
+    for(auto asset = root.begin(); asset != root.end(); ++asset){
+        auto node = asset->second;
+        auto entryName = asset->first.as<std::string>();
+        auto output = (this->gCurrentDirectory / entryName).string();
+        std::replace(output.begin(), output.end(), '\\', '/');
+
+        if(node["type"]){
+            const auto type = GetTypeNode(node);
+            if(type == "NAUDIO:V0:SAMPLE"){
+                AudioManager::Instance->bind_sample(node, output);
+            }
+        }
+
+        if(!node["offset"])  {
+            continue;
+        }
+
+        if(gCurrentSegmentNumber) {
+            if (IS_SEGMENTED(node["offset"].as<uint32_t>()) == false) {
+                node["offset"] = (gCurrentSegmentNumber << 24) | node["offset"].as<uint32_t>();
+            }
+        }
+
+        if(!gCurrentVirtualPath.empty()) {
+            node["path"] = gCurrentVirtualPath;
+        }
+
+        this->gAddrMap[this->gCurrentFile][node["offset"].as<uint32_t>()] = std::make_tuple(output, node);
+    }
+
+    // Stupid hack because the iteration broke the assets
+    root = YAML::LoadFile(this->gCurrentFile);
+    this->gConfig.segment.local.clear();
+    this->gConfig.segment.compressed.clear();
+    this->gFileHeader.clear();
+    this->gCurrentPad = 0;
+    this->gCurrentVram = std::nullopt;
+    this->gCurrentVirtualPath = "";
+    this->gCurrentSegmentNumber = 0;
+    this->gCurrentCompressionType = CompressionType::None;
+    this->gCurrentFileOffset = 0;
+    this->gTables.clear();
+    this->gCurrentExternalFiles.clear();
+    this->gSubFileList.clear();
+    GFXDOverride::ClearVtx();
+
+    if(root[":config"]) {
+        this->ParseCurrentFileConfig(root[":config"]);
+    }
+
+    if(!this->NodeHasChanges(this->gCurrentFile) && !this->gNodeForceProcessing) {
+        return;
+    }
+
+    spdlog::set_pattern(regular);
+    SPDLOG_INFO("------------------------------------------------");
+    spdlog::set_pattern(line);
+
+    ProcessParseFile(root);
+
+    ProcessExportFile();
+}
+
 void Companion::Process() {
 
     auto configPath = this->gSourceDirectory / "config.yml";
@@ -1299,6 +1321,17 @@ void Companion::Process() {
         if (!this->gProcessedFiles.contains(this->gCurrentFile)) {
             ProcessFile(root);
             this->gProcessedFiles.insert(this->gCurrentFile);
+
+            // Export Sub-Files, (Parsing occurs on subfile creation)
+            auto parentDir = this->gCurrentDirectory;
+            for (const auto &subFile : this->gSubFileList) {
+                this->gCurrentDirectory = parentDir / subFile;
+                this->gCurrentFile = subFile;
+                if (!this->gProcessedFiles.contains(subFile)) {
+                    ProcessExportFile();
+                    this->gProcessedFiles.insert(subFile);
+                }
+            }
         }
     }
 
@@ -1457,6 +1490,17 @@ std::optional<std::uint32_t> Companion::GetFileOffsetFromSegmentedAddr(const uin
     return std::nullopt;
 }
 
+std::optional<std::pair<std::uint32_t, std::uint32_t>>Companion::GetFileOffsetFromCompressedSegmentedAddr(const uint8_t segment) const {
+
+    auto segments = this->gConfig.segment;
+
+    if(segments.compressed[this->gCurrentFile].contains(segment)) {
+        return segments.compressed[this->gCurrentFile][segment];
+    }
+
+    return std::nullopt;
+}
+
 uint32_t Companion::PatchVirtualAddr(uint32_t addr) {
     if (addr & 0x80000000) {
         if (gVirtualAddrMap.contains(gCurrentFile)) {
@@ -1477,6 +1521,13 @@ std::optional<std::tuple<std::string, YAML::Node>> Companion::GetNodeByAddr(uint
     addr = PatchVirtualAddr(addr);
 
     if(!this->gAddrMap[this->gCurrentFile].contains(addr)){
+        auto realAddr = addr;
+        if (IS_SEGMENTED(addr) && GetCompressedSegmentOffset(&realAddr)) {
+            if (this->gAddrMap[this->gCurrentFile].contains(realAddr)) {
+                return this->gAddrMap[this->gCurrentFile][realAddr];
+            }
+        }
+
         for (auto &file : this->gCurrentExternalFiles) {
             if (!this->gAddrMap.contains(file)) {
                 SPDLOG_WARN("GetNodeByAddr: External File {} Not Found.", file);
@@ -1582,10 +1633,10 @@ std::optional<std::vector<std::tuple<std::string, YAML::Node>>> Companion::GetNo
     for(auto& [addr, tpl] : this->gAddrMap[this->gCurrentFile]){
         auto [name, node] = tpl;
         const auto n_type = GetTypeNode(node);
-        if(node["autogen"]){
-            SPDLOG_DEBUG("Skipping autogenerated asset {}", name);
-            continue;
-        }
+        // if(node["autogen"]){
+        //     SPDLOG_DEBUG("Skipping autogenerated asset {}", name);
+        //     continue;
+        // }
         if(n_type == type){
             nodes.push_back(tpl);
         }
@@ -1630,6 +1681,43 @@ std::string Companion::RelativePathToSrcDir(const std::string& path) const {
 
 std::string Companion::CalculateHash(const std::vector<uint8_t>& data) {
     return Chocobo1::SHA1().addData(data).finalize().toString();
+}
+
+std::optional<YAML::Node> Companion::AddSubFileAsset(YAML::Node asset, std::string newFileName, CompressionType newCompressionType, uint32_t compressedSize) {
+    if(!asset["offset"] || !asset["type"]) {
+        return std::nullopt;
+    }
+
+    if (this->gParseResults.contains(newFileName) || this->gProcessedFiles.contains(newFileName)) {
+        SPDLOG_WARN("File with name {} already exists, skipping..", newFileName);
+        return std::nullopt;
+    }
+
+    auto addr = GetSafeNode<uint32_t>(asset, "offset");
+    asset["offset"] = 0;
+
+    auto oldFile = this->gCurrentFile;
+    auto oldVram = this->gCurrentVram;
+    auto oldCompressionType = this->gCurrentCompressionType;
+    auto oldCompressedSize = this->gCurrentCompressedSize;
+    this->gSubFileList.push_back(newFileName);
+
+    this->gCurrentFile = newFileName;
+    this->gCurrentVram = { 0, addr };
+    this->gCurrentCompressionType = newCompressionType;
+    if (newCompressionType == CompressionType::BKZIP) {
+        this->gCurrentCompressedSize = compressedSize;
+    }
+
+    auto result = this->AddAsset(asset);
+
+    // Restore old file
+    this->gCurrentFile = oldFile;
+    this->gCurrentVram = oldVram;
+    this->gCurrentCompressionType = oldCompressionType;
+    this->gCurrentCompressedSize = oldCompressedSize;
+
+    return result;
 }
 
 std::optional<YAML::Node> Companion::AddAsset(YAML::Node asset) {
@@ -1687,4 +1775,19 @@ std::optional<YAML::Node> Companion::AddAsset(YAML::Node asset) {
     }
 
     return std::nullopt;
+}
+
+void Companion::SetCompressedSegment(uint32_t segmentId, uint32_t compressedFileOffset, uint32_t offset) {
+    this->gConfig.segment.compressed[this->gCurrentFile][segmentId] = std::make_pair(compressedFileOffset, offset);
+}
+
+bool Companion::GetCompressedSegmentOffset(uint32_t* addr) {
+    if (IS_SEGMENTED(*addr)) {
+        const auto compressedSegmentPair = Companion::Instance->GetFileOffsetFromCompressedSegmentedAddr(SEGMENT_NUMBER(*addr));
+        if (compressedSegmentPair.has_value()) {
+            *addr = compressedSegmentPair.value().second + SEGMENT_OFFSET(*addr);
+            return true;
+        }
+    }
+    return false;
 }

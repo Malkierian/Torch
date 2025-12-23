@@ -233,6 +233,13 @@ std::optional<std::tuple<std::string, YAML::Node>> SearchVtx(uint32_t ptr){
         if(ptr > offset && ptr < offset + end){
             return std::make_tuple(GetSafeNode<std::string>(node, "symbol", name), node);
         }
+
+        auto realAddr = ptr;
+        if (IS_SEGMENTED(realAddr) && Companion::Instance->GetCompressedSegmentOffset(&realAddr)) {
+            if(realAddr > offset && realAddr < offset + end){
+                return std::make_tuple(GetSafeNode<std::string>(node, "symbol", name), node);
+            }
+        }
     }
 
     return std::nullopt;
@@ -621,6 +628,13 @@ std::optional<std::shared_ptr<IParsedData>> DListFactory::parse(std::vector<uint
                     if(adjPtr > lOffset && adjPtr <= lOffset + lSize){
                         SPDLOG_INFO("Found vtx at 0x{:X} matching last vtx at 0x{:X}", adjPtr, lOffset);
                         GFXDOverride::RegisterVTXOverlap(adjPtr, search.value());
+                    }
+
+                    if (IS_SEGMENTED(adjPtr) && Companion::Instance->GetCompressedSegmentOffset(&adjPtr)) {
+                        if(adjPtr > lOffset && adjPtr < lOffset + lSize){
+                            SPDLOG_INFO("Found vtx at 0x{:X} matching last vtx at 0x{:X}", adjPtr, lOffset);
+                            GFXDOverride::RegisterVTXOverlap(adjPtr, search.value());
+                        }
                     }
                 } else {
                     YAML::Node vtx;

@@ -232,7 +232,7 @@ ExportResult TextureModdingExporter::Export(std::ostream&write, std::shared_ptr<
                     convert_raw_to_ci8(&raw, &size, texture->mBuffer.data(), (uint8_t *)palTexture->mBuffer.data(), 0, texture->mWidth, texture->mHeight, texture->mFormat.depth, palTexture->mFormat.depth);
                 } else {
                     auto symbol = GetSafeNode<std::string>(node, "symbol");
-                    throw std::runtime_error("Could not convert ci8 '"+symbol+"' the tlut symbol name is probably wrong for tlut_symbol node");
+                    throw std::runtime_error("Could not convert ci8 '"+symbol+"' the tlut symbol name " + tlut + " is probably wrong for tlut_symbol node");
                 }
                 break;
             }

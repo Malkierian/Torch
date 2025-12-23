@@ -93,20 +93,17 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
     CompressionType type = Companion::Instance->GetCurrCompressionType();
 
     auto fileOffset = TranslateAddr(offset, true);
+    auto offsetFromFile = TranslateAddr(offset, false) - fileOffset;
 
     // Check if an asset in a yaml file is mio0 compressed and extract.
     if (node["mio0"]) {
-        auto assetPtr = ASSET_PTR(offset);
         auto gameSize = Companion::Instance->GetRomData().size();
 
-        auto fileOffset = TranslateAddr(offset, true);
-        offset = ASSET_PTR(offset);
-
-        auto decoded = Decode(buffer, fileOffset + offset, CompressionType::MIO0);
+        auto decoded = Decode(buffer, fileOffset + offsetFromFile, CompressionType::MIO0);
         auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size);
         return {
-                .root = decoded,
-                .segment = { decoded->data, size }
+            .root = decoded,
+            .segment = { decoded->data, size }
         };
     }
 
@@ -117,10 +114,7 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
         const auto height = GetSafeNode<uint32_t>(node, "height");
         const auto textureSize = width * height * 2;
 
-        auto fileOffset = TranslateAddr(offset, true);
-        offset = ASSET_PTR(offset);
-
-        auto decoded = DecodeTKMK00(buffer, fileOffset + offset, textureSize, alpha);
+        auto decoded = DecodeTKMK00(buffer, fileOffset + offsetFromFile, textureSize, alpha);
         auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size);
         return {
             .root = decoded,
@@ -130,13 +124,11 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
 
     if (node["bkzip"]) {
         const auto compressedSize = GetSafeNode<uint32_t>(node, "compressed_size");
-
-        // TODO: Some weird bug with fileOffset exists
-        auto decoded = Decode(buffer, offset, CompressionType::BKZIP, compressedSize);
+        auto decoded = Decode(buffer, fileOffset + offsetFromFile, CompressionType::BKZIP, compressedSize);
         auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size);
         return {
-                .root = decoded,
-                .segment = { decoded->data, size }
+            .root = decoded,
+            .segment = { decoded->data, size }
         };
     }
 
@@ -145,13 +137,25 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
         case CompressionType::YAY0:
         case CompressionType::YAY1:
         case CompressionType::MIO0: {
-            offset = ASSET_PTR(offset);
-
             auto decoded = Decode(buffer, fileOffset, type);
-            auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size - offset);
+            auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size - offsetFromFile);
             return {
                 .root = decoded,
-                .segment = { decoded->data + offset, size }
+                .segment = { decoded->data + offsetFromFile, size }
+            };
+        }
+        case CompressionType::BKZIP: {
+            const auto sizeEntry = Companion::Instance->GetCurrentCompressedSize();
+
+            if (!sizeEntry.has_value()) {
+                throw std::runtime_error("Auto decode missing file compressed size.");
+            }
+
+            auto decoded = Decode(buffer, fileOffset, type, sizeEntry.value());
+            auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size - offsetFromFile);
+            return {
+                .root = decoded,
+                .segment = { decoded->data + offsetFromFile, size }
             };
         }
         case CompressionType::YAZ0:
@@ -183,8 +187,12 @@ uint32_t Decompressor::TranslateAddr(uint32_t addr, bool baseAddress){
     if(IS_SEGMENTED(addr)){
         const auto segment = Companion::Instance->GetFileOffsetFromSegmentedAddr(SEGMENT_NUMBER(addr));
         if(!segment.has_value()) {
-            SPDLOG_ERROR("Segment data missing from game config\nPlease add an entry for segment {}", SEGMENT_NUMBER(addr));
-            return 0;
+            const auto compressedSegmentPair = Companion::Instance->GetFileOffsetFromCompressedSegmentedAddr(SEGMENT_NUMBER(addr));
+            if (!compressedSegmentPair.has_value()) {
+                SPDLOG_ERROR("Segment data missing from game config\nPlease add an entry for segment {}", SEGMENT_NUMBER(addr));
+                return 0;
+            }
+            return compressedSegmentPair.value().first + (!baseAddress ? (compressedSegmentPair.value().second + SEGMENT_OFFSET(addr)) : 0);
         }
 
         return segment.value() + (!baseAddress ? SEGMENT_OFFSET(addr) : 0);
@@ -196,7 +204,7 @@ uint32_t Decompressor::TranslateAddr(uint32_t addr, bool baseAddress){
         const auto vram = vramEntry.value();
 
         if(addr >= vram.addr){
-            return vram.offset + (addr - vram.addr);
+            return vram.offset + (!baseAddress ? (addr - vram.addr) : 0);
         }
     }
 
@@ -235,10 +243,12 @@ bool Decompressor::IsSegmented(uint32_t addr) {
         const auto segment = Companion::Instance->GetFileOffsetFromSegmentedAddr(SEGMENT_NUMBER(addr));
 
         if(!segment.has_value()) {
-            SPDLOG_ERROR("Segment data missing from game config\nPlease add an entry for segment {}", SEGMENT_NUMBER(addr));
-            return false;
+            const auto compressedSegmentPair = Companion::Instance->GetFileOffsetFromCompressedSegmentedAddr(SEGMENT_NUMBER(addr));
+            if (!compressedSegmentPair.has_value()) {
+                SPDLOG_ERROR("Segment data missing from game config\nPlease add an entry for segment {}", SEGMENT_NUMBER(addr));
+                return false;
+            }
         }
-
         return true;
     }
 

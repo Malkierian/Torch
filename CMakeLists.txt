@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.12)
 project(torch)
 include(FetchContent)
 
+set(CMAKE_POLICY_VERSION_MINIMUM 3.12)
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_C_STANDARD 11)
 
@@ -296,7 +298,19 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(tinyxml2)
 
-target_link_libraries(${PROJECT_NAME} PRIVATE tinyxml2 yaml-cpp N64Graphics BinaryTools)
+# Link zlib
+set(ZLIB_BUILD_SHARED_LIBS OFF CACHE BOOL "Build zlib as a static library" FORCE)
+set(ZLIB_BUILD_TESTS OFF CACHE BOOL "Disable building zlib tests" FORCE)
+
+FetchContent_Declare(
+    zlib
+    GIT_REPOSITORY https://github.com/madler/zlib.git
+    GIT_TAG v1.3.1
+    OVERRIDE_FIND_PACKAGE
+)
+FetchContent_MakeAvailable(zlib)
+
+target_link_libraries(${PROJECT_NAME} PRIVATE tinyxml2 zlibstatic yaml-cpp N64Graphics BinaryTools)
 
 if(NOT USE_STANDALONE)
     target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

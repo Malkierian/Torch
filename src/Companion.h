@@ -50,6 +50,7 @@ struct SegmentConfig {
     std::unordered_map<uint32_t, uint32_t> global;
     std::unordered_map<uint32_t, uint32_t> local;
     std::unordered_map<uint32_t, uint32_t> temporal;
+    std::unordered_map<std::string, std::unordered_map<uint32_t, std::pair<std::uint32_t, std::uint32_t>>> compressed;
 };
 
 struct Table {
@@ -163,6 +164,7 @@ public:
     std::optional<ParseResultData> GetParseDataBySymbol(const std::string& symbol);
 
     std::optional<std::uint32_t> GetFileOffsetFromSegmentedAddr(uint8_t segment) const;
+    std::optional<std::pair<std::uint32_t, std::uint32_t>> GetFileOffsetFromCompressedSegmentedAddr(uint8_t segment) const;
     std::optional<std::shared_ptr<BaseFactory>> GetFactory(const std::string& type);
     uint32_t PatchVirtualAddr(uint32_t addr);
     std::optional<std::tuple<std::string, YAML::Node>> GetNodeByAddr(uint32_t addr);
@@ -173,6 +175,7 @@ public:
     std::optional<std::uint32_t> GetFileOffset(void) const { return this->gCurrentFileOffset; };
     std::optional<std::uint32_t> GetCurrSegmentNumber(void) const { return this->gCurrentSegmentNumber; };
     CompressionType GetCurrCompressionType(void) const { return this->gCurrentCompressionType; };
+    std::optional<std::uint32_t> GetCurrentCompressedSize(void) const { return this->gCurrentCompressedSize; };
     std::optional<VRAMEntry> GetCurrentVRAM(void) const { return this->gCurrentVram; };
     std::optional<Table> SearchTable(uint32_t addr);
 
@@ -188,7 +191,10 @@ public:
     BinaryWrapper* GetCurrentWrapper() { return this->gCurrentWrapper; }
 
     std::optional<std::tuple<std::string, YAML::Node>> RegisterAsset(const std::string& name, YAML::Node& node);
+    std::optional<YAML::Node> AddSubFileAsset(YAML::Node asset, std::string newFileName, CompressionType newCompressionType, uint32_t compressedSize = 0);
     std::optional<YAML::Node> AddAsset(YAML::Node asset);
+    void SetCompressedSegment(uint32_t segmentId, uint32_t compressedFileOffset, uint32_t offset);
+    bool GetCompressedSegmentOffset(uint32_t* addr);
 private:
     TorchConfig gConfig;
     YAML::Node gModdingConfig;
@@ -209,6 +215,7 @@ private:
 
     // Temporal Variables
     std::string gCurrentFile;
+    std::vector<std::string> gSubFileList;
     std::string gCurrentVirtualPath;
     std::string gFileHeader;
     bool gEnablePadGen = false;
@@ -217,6 +224,7 @@ private:
     uint32_t gCurrentSegmentNumber;
     std::optional<VRAMEntry> gCurrentVram;
     CompressionType gCurrentCompressionType = CompressionType::None;
+    std::optional<std::uint32_t> gCurrentCompressedSize;
     std::vector<Table> gTables;
     std::vector<std::string> gCurrentExternalFiles;
     std::unordered_set<std::string> gProcessedFiles;
@@ -231,6 +239,8 @@ private:
     std::unordered_map<std::string, std::tuple<uint32_t, uint32_t>> gVirtualAddrMap;
     std::unordered_map<std::string, std::unordered_map<uint32_t, std::tuple<std::string, YAML::Node>>> gAddrMap;
 
+    void ProcessParseFile(YAML::Node root);
+    void ProcessExportFile();
     void ProcessFile(YAML::Node root);
     void ParseEnums(std::string& file);
     void ParseHash();
