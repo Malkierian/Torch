@@ -1,6 +1,7 @@
 #include <vector>
 #include <stdexcept>
 #include <cstdint>
+#include <cstring>
 #include <string>
 #include <utility>
 #include <zlib.h>
