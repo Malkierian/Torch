@@ -9,12 +9,15 @@
 
 namespace BK64 {
 
+/**
+ * SpriteData: 2D billboard sprite asset definition
+ */
 class SpriteData : public IParsedData {
 public:
-    int16_t mFrameCount;
-    int16_t mFormatCode;
-    std::vector<uint16_t> mChunkCounts;
-    std::vector<std::pair<int16_t, int16_t>> mPositions;
+    int16_t mFrameCount; // Number of animation frames
+    int16_t mFormatCode; // Texture format (RGBA16=0, RGBA32=1, CI4=2, CI8=3, etc.)
+    std::vector<uint16_t> mChunkCounts; // Chunks per frame (length = mFrameCount)
+    std::vector<std::pair<int16_t, int16_t>> mPositions; // (x, y) offset per chunk
 
     SpriteData(int16_t frameCount, int16_t formatCode, std::vector<uint16_t> chunkCounts, std::vector<std::pair<int16_t, int16_t>> positions) : mFrameCount(frameCount), mFormatCode(formatCode), mChunkCounts(std::move(chunkCounts)), mPositions(std::move(positions)) {}
 };

@@ -644,7 +644,7 @@ std::optional<std::shared_ptr<IParsedData>> DListFactory::parse(std::vector<uint
                     Companion::Instance->AddAsset(vtx);
                 }
             } else {
-                SPDLOG_WARN("Found vtx at 0x{:X}", w1);
+                SPDLOG_INFO("Found registered vtx at 0x{:X}", w1);
             }
         }
 

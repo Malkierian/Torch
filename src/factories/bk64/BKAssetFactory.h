@@ -8,6 +8,20 @@
 
 namespace BK64 {
 
+/**
+ * BKAssetInfo: Asset table entry defining location and type
+ * 
+ * Fields:
+ * - offset: ROM address or file offset (BKZIP compressed if compressionFlag != 0)
+ * - compressionFlag: 0 = uncompressed, 1 = BKZIP compressed, 2 = MIO0, 3 = YAY0
+ * - tFlag: Type discriminator (0=model, 1=sprite, 2=animation, etc.)
+ * - assetMode: Loading mode (0=immediate, 1=deferred, 2=cached)
+ * - index: Original asset index in source data (debugging aid)
+ * 
+ * Usage Flow:
+ *   getModel3d(0x2d5) → assetTable[0x2d5] → offset=0x1A2400, compression=1
+ *   -> Decompressor::BKZIP(ROM + 0x1A2400) → ModelFactory::parse()
+ */
 typedef struct BKAssetInfo {
     uint32_t offset;
     int16_t compressionFlag;
@@ -17,16 +31,16 @@ typedef struct BKAssetInfo {
 } BKAssetInfo;
 
 enum class BKAssetType {
-    Animation,
-    Binary,
-    DemoInput,
-    Dialog,
-    GruntyQuestion,
-    LevelSetup,
-    Midi,
-    Model,
-    QuizQuestion,
-    Sprite,
+    Animation,      // 0x000 - 0x0FF
+    Binary,         // 0x100 - 0x1FF
+    DemoInput,      // 0x200 - 0x2CF
+    Dialog,         // 0x2D0 - 0x2D0
+    Model,          // 0x2D1 - 0x571
+    Sprite,         // 0x572 - 0x6FF
+    Map,            // 0x700 - 0x7FF
+    Midi,           // 0x800 - 0x8FF
+    GruntyQuestion, // 0x900 - 0x9FF
+    QuizQuestion,   // 0xA00 - 0xAFF
 };
 
 class BKAssetData : public IParsedData {
