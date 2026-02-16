@@ -6,6 +6,7 @@
 #include <utility>
 #include <zlib.h>
 #include "bk_unzip.h"
+#include "spdlog/spdlog.h"
 
 namespace BK64 {
 
@@ -29,6 +30,17 @@ uint8_t* bk_unzip(const uint8_t* in_buffer, uint32_t* size) {
         (static_cast<uint32_t>(in_buffer[3]) << 16) |
         (static_cast<uint32_t>(in_buffer[4]) << 8) |
         static_cast<uint32_t>(in_buffer[5]);
+
+    if (expected_len == 0) {
+        SPDLOG_WARN("Detected 0-byte BK asset. Returning empty buffer.");
+        *size = 0;
+        return (uint8_t*)malloc(1); 
+    }
+
+    if (expected_len > 8 * 1024 * 1024) {
+        SPDLOG_ERROR("Refusing to allocate {} bytes for decompression.", expected_len);
+        return nullptr; 
+    }
 
     uint8_t* out_buffer = (uint8_t*)malloc(expected_len);
     memset(out_buffer, 0, expected_len);

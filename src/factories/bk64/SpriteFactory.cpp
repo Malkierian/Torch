@@ -89,11 +89,48 @@ ExportResult SpriteCodeExporter::Export(std::ostream &write, std::shared_ptr<IPa
     auto sprite = std::static_pointer_cast<SpriteData>(raw);
     const auto offset = GetSafeNode<uint32_t>(node, "offset");
     const auto symbol = GetSafeNode(node, "symbol", entryName);
-    // TODO:
 
     write << "BKSpriteHeader " << symbol << "_Header = { " << sprite->mFrameCount << ", " << sprite->mFormatCode << " };\n\n";
 
+    // Export chunk counts per frame
+    if (!sprite->mChunkCounts.empty()) {
+        write << "u16 " << symbol << "_ChunkCounts[] = {\n" << fourSpaceTab;
+        for (size_t i = 0; i < sprite->mChunkCounts.size(); i++) {
+            write << sprite->mChunkCounts[i];
+            if (i < sprite->mChunkCounts.size() - 1) {
+                write << ", ";
+            }
+        }
+        write << "\n};\n\n";
+    }
 
+    // Export chunk positions
+    if (!sprite->mPositions.empty()) {
+        write << "BKSpriteChunk " << symbol << "_Chunks[] = {\n";
+        
+        size_t chunkIndex = 0;
+        for (size_t frameIdx = 0; frameIdx < sprite->mChunkCounts.size(); frameIdx++) {
+            write << fourSpaceTab << "// Frame " << frameIdx << "\n";
+            uint16_t chunkCount = sprite->mChunkCounts[frameIdx];
+            
+            for (uint16_t i = 0; i < chunkCount; i++) {
+                if (chunkIndex < sprite->mPositions.size()) {
+                    auto [x, y] = sprite->mPositions[chunkIndex];
+                    write << fourSpaceTab << "{ " << x << ", " << y << " }";
+                    
+                    // Add texture reference as comment
+                    write << ", // " << symbol << "_" << frameIdx << "_" << i;
+                    
+                    if (chunkIndex < sprite->mPositions.size() - 1) {
+                        write << ",";
+                    }
+                    write << "\n";
+                    chunkIndex++;
+                }
+            }
+        }
+        write << "};\n\n";
+    }
 
     return offset;
 }
@@ -124,7 +161,56 @@ ExportResult SpriteBinaryExporter::Export(std::ostream &write, std::shared_ptr<I
 }
 
 ExportResult SpriteModdingExporter::Export(std::ostream&write, std::shared_ptr<IParsedData> raw, std::string&entryName, YAML::Node&node, std::string* replacement) {
-    // TODO: export X and Y Positions
+    const auto sprite = std::static_pointer_cast<SpriteData>(raw);
+    const auto symbol = GetSafeNode(node, "symbol", entryName);
+
+    *replacement += ".yaml";
+
+    YAML::Emitter out;
+    out << YAML::BeginMap;
+    out << YAML::Key << symbol;
+    out << YAML::Value;
+    out.SetIndent(2);
+
+    out << YAML::BeginMap;
+    out << YAML::Key << "FrameCount";
+    out << YAML::Value << sprite->mFrameCount;
+    out << YAML::Key << "FormatCode";
+    out << YAML::Value << sprite->mFormatCode;
+    out << YAML::Key << "Frames";
+    out << YAML::Value;
+
+    out << YAML::BeginSeq;
+    size_t chunkIndex = 0;
+    for (size_t frameIdx = 0; frameIdx < sprite->mChunkCounts.size(); frameIdx++) {
+        out << YAML::BeginMap;
+        out << YAML::Key << "ChunkCount";
+        out << YAML::Value << sprite->mChunkCounts[frameIdx];
+        out << YAML::Key << "Chunks";
+        out << YAML::Value;
+        
+        out << YAML::BeginSeq;
+        uint16_t chunkCount = sprite->mChunkCounts[frameIdx];
+        for (uint16_t i = 0; i < chunkCount; i++) {
+            if (chunkIndex < sprite->mPositions.size()) {
+                auto [x, y] = sprite->mPositions[chunkIndex];
+                out << YAML::Flow;
+                out << YAML::BeginMap;
+                out << YAML::Key << "X" << YAML::Value << x;
+                out << YAML::Key << "Y" << YAML::Value << y;
+                out << YAML::EndMap;
+                chunkIndex++;
+            }
+        }
+        out << YAML::EndSeq;
+        out << YAML::EndMap;
+    }
+    out << YAML::EndSeq;
+
+    out << YAML::EndMap;
+    out << YAML::EndMap;
+
+    write.write(out.c_str(), out.size());
 
     return std::nullopt;
 }
