@@ -86,6 +86,9 @@
 #include "factories/bk64/DialogFactory.h"
 #include "factories/bk64/GeoLayoutFactory.h"
 #include "factories/bk64/GruntyQuestionFactory.h"
+#include "factories/bk64/LevelSetupFactory.h"
+#include "factories/bk64/NodePropArrayFactory.h"
+#include "factories/bk64/PropArrayFactory.h"
 #include "factories/bk64/QuizQuestionFactory.h"
 #include "factories/bk64/SpriteFactory.h"
 #include "factories/bk64/ModelFactory.h"
@@ -216,6 +219,9 @@ void Companion::Init(const ExportType type) {
     this->RegisterFactory("BK64:DIALOG", std::make_shared<BK64::DialogFactory>());
     this->RegisterFactory("BK64:GEO_LAYOUT", std::make_shared<BK64::GeoLayoutFactory>());
     this->RegisterFactory("BK64:GRUNTYQ", std::make_shared<BK64::GruntyQuestionFactory>());
+    this->RegisterFactory("BK64:LEVEL_SETUP", std::make_shared<BK64::LevelSetupFactory>());
+    this->RegisterFactory("BK64:NODEPROP_ARRAY", std::make_shared<BK64::NodePropArrayFactory>());
+    this->RegisterFactory("BK64:PROP_ARRAY", std::make_shared<BK64::PropArrayFactory>());
     this->RegisterFactory("BK64:QUIZQ", std::make_shared<BK64::QuizQuestionFactory>());
     this->RegisterFactory("BK64:MODEL", std::make_shared<BK64::ModelFactory>());
     this->RegisterFactory("BK64:SPRITE", std::make_shared<BK64::SpriteFactory>());

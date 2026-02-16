@@ -68,10 +68,36 @@ static const std::unordered_map<GBIVersion, std::unordered_map<std::string, uint
 
 ExportResult ModelHeaderExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     const auto symbol = GetSafeNode(node, "symbol", entryName);
+    auto model = std::static_pointer_cast<ModelData>(raw);
 
     if (Companion::Instance->IsOTRMode()) {
         write << "static const ALIGN_ASSET(2) char " << symbol << "[] = \"__OTR__" << (*replacement) << "\";\n\n";
         return std::nullopt;
+    }
+
+    write << "extern BKModelHeader " << symbol << "_Header;\n";
+    
+    if (model->mHasAnimation && !model->mBones.empty()) {
+        write << "extern BKAnimHeader " << symbol << "_AnimHeader;\n";
+        write << "extern BKBone " << symbol << "_Bones[];\n";
+    }
+    
+    if (model->mHasCollision) {
+        write << "extern BKCollisionHeader " << symbol << "_CollisionHeader;\n";
+        if (!model->mGeoCubes.empty()) {
+            write << "extern BKGeoCube " << symbol << "_GeoCubes[];\n";
+        }
+        if (!model->mCollisionTris.empty()) {
+            write << "extern BKCollisionTri " << symbol << "_CollisionTris[];\n";
+        }
+    }
+    
+    if (!model->mEffects.empty()) {
+        write << "extern BKEffect " << symbol << "_Effects[];\n";
+    }
+    
+    if (!model->mAnimTextures.empty()) {
+        write << "extern BKAnimTexture " << symbol << "_AnimTextures[];\n";
     }
 
     return std::nullopt;
@@ -80,6 +106,92 @@ ExportResult ModelHeaderExporter::Export(std::ostream& write, std::shared_ptr<IP
 ExportResult ModelCodeExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     auto offset = GetSafeNode<uint32_t>(node, "offset");
     auto model = std::static_pointer_cast<ModelData>(raw);
+    const auto symbol = GetSafeNode(node, "symbol", entryName);
+
+    // Export model header
+    write << "BKModelHeader " << symbol << "_Header = {\n";
+    write << fourSpaceTab << "/* geoType */ " << model->mGeoType << ",\n";
+    write << fourSpaceTab << "/* triCount */ " << model->mTriCount << ",\n";
+    write << fourSpaceTab << "/* vertCount */ " << model->mVertCount << "\n";
+    write << "};\n\n";
+
+    // Export animation data if present
+    if (model->mHasAnimation && !model->mBones.empty()) {
+        write << "BKAnimHeader " << symbol << "_AnimHeader = {\n";
+        write << fourSpaceTab << "/* scalingFactor */ " << model->mAnimHeader.scalingFactor << "f,\n";
+        write << fourSpaceTab << "/* boneCount */ " << model->mBones.size() << "\n";
+        write << "};\n\n";
+
+        write << "BKBone " << symbol << "_Bones[] = {\n";
+        for (const auto& bone : model->mBones) {
+            write << fourSpaceTab << "{ ";
+            write << bone.x << "f, " << bone.y << "f, " << bone.z << "f, ";
+            write << bone.id << ", " << bone.parentId;
+            write << " },\n";
+        }
+        write << "};\n\n";
+    }
+
+    // Export collision data if present
+    if (model->mHasCollision) {
+        write << "BKCollisionHeader " << symbol << "_CollisionHeader = {\n";
+        write << fourSpaceTab << "/* minIndex */ { " << model->mCollisionHeader.minIndexX << ", " 
+              << model->mCollisionHeader.minIndexY << ", " << model->mCollisionHeader.minIndexZ << " },\n";
+        write << fourSpaceTab << "/* maxIndex */ { " << model->mCollisionHeader.maxIndexX << ", " 
+              << model->mCollisionHeader.maxIndexY << ", " << model->mCollisionHeader.maxIndexZ << " },\n";
+        write << fourSpaceTab << "/* yStride */ " << model->mCollisionHeader.yStride << ",\n";
+        write << fourSpaceTab << "/* zStride */ " << model->mCollisionHeader.zStride << ",\n";
+        write << fourSpaceTab << "/* geoCubeScale */ " << model->mCollisionHeader.geoCubeScale << ",\n";
+        write << fourSpaceTab << "/* geoCubeCount */ " << model->mGeoCubes.size() << ",\n";
+        write << fourSpaceTab << "/* triCount */ " << model->mCollisionTris.size() << "\n";
+        write << "};\n\n";
+
+        if (!model->mGeoCubes.empty()) {
+            write << "BKGeoCube " << symbol << "_GeoCubes[] = {\n";
+            for (const auto& cube : model->mGeoCubes) {
+                write << fourSpaceTab << "{ " << cube.startTri << ", " << cube.triCount << " },\n";
+            }
+            write << "};\n\n";
+        }
+
+        if (!model->mCollisionTris.empty()) {
+            write << "BKCollisionTri " << symbol << "_CollisionTris[] = {\n";
+            for (const auto& tri : model->mCollisionTris) {
+                write << fourSpaceTab << "{ ";
+                write << tri.vtxId1 << ", " << tri.vtxId2 << ", " << tri.vtxId3 << ", ";
+                write << tri.unk6 << ", " << std::hex << "0x" << tri.flags << std::dec;
+                write << " },\n";
+            }
+            write << "};\n\n";
+        }
+    }
+
+    // Export effects if present
+    if (!model->mEffects.empty()) {
+        write << "BKEffect " << symbol << "_Effects[] = {\n";
+        for (const auto& effect : model->mEffects) {
+            write << fourSpaceTab << "{ " << effect.dataInfo << ", ";
+            write << effect.vtxIndices.size() << ", { ";
+            for (size_t i = 0; i < effect.vtxIndices.size(); i++) {
+                write << effect.vtxIndices[i];
+                if (i < effect.vtxIndices.size() - 1) write << ", ";
+            }
+            write << " } },\n";
+        }
+        write << "};\n\n";
+    }
+
+    // Export animated textures if present
+    if (!model->mAnimTextures.empty()) {
+        write << "BKAnimTexture " << symbol << "_AnimTextures[] = {\n";
+        for (const auto& animTex : model->mAnimTextures) {
+            write << fourSpaceTab << "{ ";
+            write << animTex.frameSize << ", " << animTex.frameCount << ", ";
+            write << animTex.frameRate << "f";
+            write << " },\n";
+        }
+        write << "};\n\n";
+    }
 
     return offset;
 }
@@ -127,6 +239,9 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
     /* 0x2C */ auto animatedTextureOffset = reader.ReadUInt32();
     /* 0x30 */ auto triCount = reader.ReadUInt16();
     /* 0x32 */ auto vertCount = reader.ReadUInt16();
+
+    // Create ModelData to store parsed information
+    auto modelData = std::make_shared<ModelData>(geoType, triCount, vertCount);
 
     uint16_t textureCount;
     
@@ -333,11 +448,11 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
     if (animationSetupOffset != 0) {
         reader.Seek(modelOffset + animationSetupOffset, LUS::SeekOffsetType::Start);
-        auto scalingFactor = reader.ReadFloat();
+        modelData->mHasAnimation = true;
+        modelData->mAnimHeader.scalingFactor = reader.ReadFloat();
         auto boneCount = reader.ReadUInt16();
         reader.ReadUInt16(); // pad
 
-        std::vector<BoneData> bones;
         for (uint16_t i = 0; i < boneCount; i++) {
             BoneData bone;
             bone.x = reader.ReadFloat();
@@ -345,44 +460,42 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             bone.z = reader.ReadFloat();
             bone.id = reader.ReadUInt16();
             bone.parentId = reader.ReadUInt16();
-            bones.push_back(bone);
+            modelData->mBones.push_back(bone);
         }
     }
 
     if (collisionSetupOffset != 0) {
         reader.Seek(modelOffset + collisionSetupOffset, LUS::SeekOffsetType::Start);
 
-        auto minIndexX = reader.ReadInt16();
-        auto minIndexY = reader.ReadInt16();
-        auto minIndexZ = reader.ReadInt16();
-        auto maxIndexX = reader.ReadInt16();
-        auto maxIndexY = reader.ReadInt16();
-        auto maxIndexZ = reader.ReadInt16();
-        auto yStride = reader.ReadUInt16();
-        auto zStride = reader.ReadUInt16();
+        modelData->mHasCollision = true;
+        modelData->mCollisionHeader.minIndexX = reader.ReadInt16();
+        modelData->mCollisionHeader.minIndexY = reader.ReadInt16();
+        modelData->mCollisionHeader.minIndexZ = reader.ReadInt16();
+        modelData->mCollisionHeader.maxIndexX = reader.ReadInt16();
+        modelData->mCollisionHeader.maxIndexY = reader.ReadInt16();
+        modelData->mCollisionHeader.maxIndexZ = reader.ReadInt16();
+        modelData->mCollisionHeader.yStride = reader.ReadUInt16();
+        modelData->mCollisionHeader.zStride = reader.ReadUInt16();
         auto geoCubeCount = reader.ReadUInt16();
-        auto geoCubeScale = reader.ReadUInt16();
+        modelData->mCollisionHeader.geoCubeScale = reader.ReadUInt16();
         auto triCount = reader.ReadUInt16();
         reader.ReadUInt16(); // pad
 
-        std::vector<GeoCube> cubes;
         for (uint16_t i = 0; i < geoCubeCount; i++) {
             GeoCube cube;
             cube.startTri = reader.ReadUInt16();
             cube.triCount = reader.ReadUInt16();
-            cubes.push_back(cube);
+            modelData->mGeoCubes.push_back(cube);
         }
 
-        std::vector<CollisionTri> tris;
         for (uint16_t i = 0; i < triCount; i++) {
             CollisionTri tri;
-
             tri.vtxId1 = reader.ReadUInt16();
             tri.vtxId2 = reader.ReadUInt16();
             tri.vtxId3 = reader.ReadUInt16();
             tri.unk6 = reader.ReadUInt16();
             tri.flags = reader.ReadUInt32();
-            tris.push_back(tri);
+            modelData->mCollisionTris.push_back(tri);
         }
     }
 
@@ -407,7 +520,6 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         reader.Seek(modelOffset + effectsSetupOffset, LUS::SeekOffsetType::Start);
         auto effectCount = reader.ReadUInt16();
 
-        std::vector<Effect> effects;
         for (uint16_t i = 0; i < effectCount; i++) {
             Effect effect;
             effect.dataInfo = reader.ReadUInt16();
@@ -415,7 +527,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             for (uint16_t j = 0; j < vtxCount; j++) {
                 effect.vtxIndices.push_back(reader.ReadUInt16());
             }
-            effects.push_back(effect);
+            modelData->mEffects.push_back(effect);
         }
     }
 
@@ -439,7 +551,6 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
     if (animatedTextureOffset != 0) {
         reader.Seek(modelOffset + animatedTextureOffset, LUS::SeekOffsetType::Start);
-        std::vector<AnimTexture> animTextureList;
         for (uint32_t i = 0; i < ANIM_TEXTURE_LIST_COUNT; i++) {
             AnimTexture animTexture;
             animTexture.frameSize = reader.ReadUInt16();
@@ -450,10 +561,12 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             if (animTexture.frameSize != 0) {
                 Companion::Instance->SetCompressedSegment(15 - i, fileOffset, modelOffset + modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE);
             }
+            
+            modelData->mAnimTextures.push_back(animTexture);
         }
     }
 
-    return std::make_shared<ModelData>();
+    return modelData;
 }
 
 } // namespace BK64
