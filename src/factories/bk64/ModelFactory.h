@@ -8,12 +8,6 @@ namespace BK64 {
  * BoneData: Skeletal animation bone joint
  * Decomp: BKAnimation from model.h
  * 
- * Runtime Purpose:
- * - Defines bone hierarchy for animated 3D models (Banjo, Kazooie, enemies, NPCs)
- * - bone_id specifies bone index, mtx_id links to parent bone matrix
- * - unk0[3] are bone offsets from parent in local space (f32[3])
- * - Used by animation system to apply keyframe rotations/translations
- * 
  * Structure Layout:
  *   Offset 0x00: unk0[3] (f32[3]) - X, Y, Z bone position offset from parent
  *   Offset 0x0C: bone_id (s16) - Bone index
@@ -29,12 +23,6 @@ typedef struct BoneData {
  * GeoCube: Collision detection spatial partition cell
  * Decomp: BKCollisionGeo from model.h
  * 
- * Runtime Purpose:
- * - Divides model collision mesh into grid cells for fast intersection tests
- * - Each cube contains subset of triangles determined by AABB overlap
- * - Player position → grid cell lookup → test only triangles in that cube
- * - Dramatically reduces collision checks from thousands to dozens
- * 
  * Structure Layout:
  *   Offset 0x00: start_tri_index (s16) - Index of first triangle in this cube
  *   Offset 0x02: tri_count (s16) - Number of triangles in this cube
@@ -48,23 +36,10 @@ typedef struct GeoCube {
  * CollisionTri: Triangle face for collision detection
  * Decomp: BKCollisionTri from model.h
  * 
- * Runtime Purpose:
- * - Defines collision geometry (floors, walls, ceilings, slopes)
- * - vtxIds[3] index into vertex array (defines triangle shape)
- * - flags determines surface type: walkable floor, wall, water, lava, ice, etc.
- * - Used by func_80309CF8_rayTriIntersect for player/actor collision response
- * 
  * Structure Layout:
  *   Offset 0x00: unk0[3] (s16[3]) - Vertex indices (we name it vtxIds[3])
  *   Offset 0x06: unk6 (s16) - Additional flags/material ID
  *   Offset 0x08: flags (s32) - Surface type flags
- * 
- * Flag Types (examples):
- *   0x01: Walkable floor
- *   0x02: Wall (blocks movement)
- *   0x04: Water surface
- *   0x08: Damage surface (lava, spikes)
- *   0x10: Ice (reduced friction)
  */
 typedef struct CollisionTri {
     uint16_t vtxIds[3];    // Vertex indices forming triangle (decomp: unk0[3])
@@ -74,12 +49,6 @@ typedef struct CollisionTri {
 
 /**
  * Effect: Vertex group for special rendering effects
- * 
- * Runtime Purpose:
- * - Defines vertex subsets for effects like water ripples, transparency, glow
- * - dataInfo specifies effect type and parameters
- * - vtxIndices lists affected vertices
- * - Processed during rendering to apply shader effects or animations
  */
 typedef struct Effect {
     uint16_t dataInfo;               // Effect type and parameters
@@ -89,10 +58,6 @@ typedef struct Effect {
 /**
  * AnimTexture: Animated texture definition
  * Decomp: AnimTexture from model.h
- * 
- * Runtime Purpose:
- * - Cycles through texture frames for animated surfaces (water, lava, scrolling)
- * - Current frame = (gameTime * frameRate) % frameCount
  * 
  * Structure Layout (decomp field names):
  *   Offset 0x00: frame_size (s16) - Bytes per texture frame
@@ -108,12 +73,6 @@ typedef struct AnimTexture {
 /**
  * CollisionHeader: Collision detection grid parameters
  * Decomp: BKCollisionList from model.h
- * 
- * Runtime Purpose:
- * - Defines bounding box and grid stride for GeoCube spatial partitioning
- * - minIndex/maxIndex: AABB containing all collision geometry
- * - yStride/zStride: number of cubes per row/layer (grid dimensions)
- * - geoCubeScale: world units per cube edge (typically 100-200)
  * 
  * Structure Layout (decomp field names):
  *   Offset 0x00: unk0[3] (s16[3]) - min[X,Y,Z]
@@ -141,11 +100,6 @@ typedef struct CollisionHeader {
 /**
  * AnimationHeader: Animation scaling factor
  * Decomp: BKAnimationList from model.h
- * 
- * Runtime Purpose:
- * - Scales bone animation keyframe values to world space
- * - Animation data stored as integers, multiplied by scalingFactor for floats
- * - Allows compact storage of animation data
  * 
  * Structure Layout:
  *   Offset 0x00: unk0 (f32) - Scaling multiplier for animation keyframes
