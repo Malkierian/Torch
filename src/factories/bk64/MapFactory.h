@@ -19,7 +19,7 @@ namespace BK64 {
  *   * 0xA = Special event marker (used by level-specific systems)
  * 
  * Data Flow:
- *   ROM → LevelSetupFactory parse() → NodeProp array → func_8033F5A0_loadLevel →
+ *   ROM → MapFactory parse() → NodeProp array → func_8033F5A0_loadLevel →
  *   ActorMarker creation → Actor spawning/event triggering via overlay callbacks
  * 
  * Structure Layout:
@@ -192,42 +192,42 @@ typedef struct CubeData {
     std::vector<Prop> props;          // Visual instances: models/sprites (prop2Ptr in runtime)
 } CubeData;
 
-class LevelSetupData : public IParsedData {
+class MapData : public IParsedData {
   public:
     std::vector<CubeData> mCubes;
 
-    LevelSetupData(std::vector<CubeData> cubes) : mCubes(std::move(cubes)) {}
+    MapData(std::vector<CubeData> cubes) : mCubes(std::move(cubes)) {}
 };
 
-class LevelSetupHeaderExporter : public BaseExporter {
+class MapHeaderExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupBinaryExporter : public BaseExporter {
+class MapBinaryExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupCodeExporter : public BaseExporter {
+class MapCodeExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupModdingExporter : public BaseExporter {
+class MapModdingExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupFactory : public BaseFactory {
+class MapFactory : public BaseFactory {
   public:
     std::optional<std::shared_ptr<IParsedData>> parse(std::vector<uint8_t>& buffer, YAML::Node& data) override;
     inline std::unordered_map<ExportType, std::shared_ptr<BaseExporter>> GetExporters() override {
         return { 
-            REGISTER(Code, LevelSetupCodeExporter) 
-            REGISTER(Header, LevelSetupHeaderExporter)                     
-            REGISTER(Binary, LevelSetupBinaryExporter)
-            REGISTER(Modding, LevelSetupModdingExporter)
+            REGISTER(Code, MapCodeExporter) 
+            REGISTER(Header, MapHeaderExporter)                     
+            REGISTER(Binary, MapBinaryExporter)
+            REGISTER(Modding, MapModdingExporter)
         };
     }
     

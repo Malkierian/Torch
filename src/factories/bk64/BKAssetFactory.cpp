@@ -14,7 +14,7 @@ static const std::unordered_map<BKAssetType, std::string> sAssetSymbolPrefixes =
     { BKAssetType::DemoInput, "DEMO" },
     { BKAssetType::Dialog, "DIALOG" },
     { BKAssetType::GruntyQuestion, "GRUNTYQ" },
-    { BKAssetType::LevelSetup, "LEVEL_SETUP" },
+    { BKAssetType::Map, "MAP" },
     { BKAssetType::Midi, "MIDI" },
     { BKAssetType::Model, "MODEL" },
     { BKAssetType::QuizQuestion, "QUIZQ" },
@@ -163,7 +163,7 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
                 break;
             }
             case 2:
-                assetType = BKAssetType::LevelSetup;
+                assetType = BKAssetType::Map;
                 break;
             case 4: {
                 uint8_t* dataBuf;
@@ -235,8 +235,8 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
                 bkAssetNode["type"] = "BK64:GRUNTYQ";
                 Companion::Instance->AddSubFileAsset(bkAssetNode, assetSymbol, compressionType, assetSize);
                 break;
-            case BKAssetType::LevelSetup:
-                bkAssetNode["type"] = "BK64:LEVEL_SETUP";
+            case BKAssetType::Map:
+                bkAssetNode["type"] = "BK64:MAP";
                 Companion::Instance->AddSubFileAsset(bkAssetNode, assetSymbol, compressionType, assetSize);
                 break;
             case BKAssetType::Midi:

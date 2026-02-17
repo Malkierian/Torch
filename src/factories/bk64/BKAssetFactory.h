@@ -50,7 +50,7 @@ typedef struct BKAssetInfo {
  *   0x2D0 - 0x2D0: Dialog (Bottles' tutorials, character speech)
  *   0x2D1 - 0x571: Model (3D geometry, collision, textures)
  *   0x572 - 0x6FF: Sprite (2D billboards, UI elements)
- *   0x700 - 0x7FF: LevelSetup (cube spatial data)
+ *   0x700 - 0x7FF: Map (cube spatial data)
  *   0x800 - 0x8FF: Midi (background music sequences)
  *   0x900 - 0x9FF: GruntyQuestion (Grunty's Furnace Fun questions)
  *   0xA00 - 0xAFF: QuizQuestion (quiz show questions)
@@ -61,7 +61,7 @@ enum class BKAssetType {
     DemoInput,
     Dialog,
     GruntyQuestion,
-    LevelSetup,
+    Map,
     Midi,
     Model,
     QuizQuestion,

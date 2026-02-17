@@ -1,4 +1,4 @@
-#include "LevelSetupFactory.h"
+#include "MapFactory.h"
 
 #include <iomanip>
 #include "spdlog/spdlog.h"
@@ -47,9 +47,9 @@ static inline const char* GetNodePropCategoryName(uint8_t bit6) {
     return (it != sNodePropCategories.end()) ? it->second.c_str() : "Unknown";
 }
 
-ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+ExportResult MapHeaderExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     const auto symbol = GetSafeNode(node, "symbol", entryName);
-    auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+    auto map = std::static_pointer_cast<MapData>(raw);
 
     if (Companion::Instance->IsOTRMode()) {
         write << "static const ALIGN_ASSET(2) char " << symbol << "[] = \"__OTR__" << (*replacement) << "\";\n\n";
@@ -57,8 +57,8 @@ ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_p
     }
 
     // Export NodeProp and Prop array declarations for each cube
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         if (!cube.nodeProps.empty()) {
             write << "extern NodeProp " << symbol << "_Cube" << cubeIdx << "_NodeProps[" << cube.nodeProps.size() << "];\n";
@@ -69,18 +69,18 @@ ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_p
         }
     }
     
-    write << "extern Cube " << symbol << "[" << levelSetup->mCubes.size() << "];\n";
+    write << "extern Cube " << symbol << "[" << map->mCubes.size() << "];\n";
     return std::nullopt;
 }
 
-ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+ExportResult MapCodeExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     auto offset = GetSafeNode<uint32_t>(node, "offset");
-    auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+    auto map = std::static_pointer_cast<MapData>(raw);
     const auto symbol = GetSafeNode(node, "symbol", entryName);
 
     // Export NodeProps for each cube
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         if (!cube.nodeProps.empty()) {
             write << "NodeProp " << symbol << "_Cube" << cubeIdx << "_NodeProps[] = {\n";
@@ -147,8 +147,8 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
 
     // Export cube array
     write << "Cube " << symbol << "[] = {\n";
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         write << fourSpaceTab << "{\n";
         write << fourSpaceTab << fourSpaceTab << "/* coord */ " << cube.x << ", " << cube.y << ", " << cube.z << ",\n";
         write << fourSpaceTab << fourSpaceTab << "/* prop1Cnt */ " << cube.prop1Cnt << ", /* prop2Cnt */ " << cube.prop2Cnt << ",\n";
@@ -173,16 +173,16 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
     return offset;
 }
 
-ExportResult LevelSetupBinaryExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+ExportResult MapBinaryExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     auto writer = LUS::BinaryWriter();
-    const auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+    const auto map = std::static_pointer_cast<MapData>(raw);
 
-    WriteHeader(writer, Torch::ResourceType::BKLevelSetup, 0);
+    WriteHeader(writer, Torch::ResourceType::BKMap, 0);
     
     // NOTE: No cube count header - data starts directly with cube headers
     
     // Iterate through each cube
-    for (const auto& cube : levelSetup->mCubes) {
+    for (const auto& cube : map->mCubes) {
         // Pack cube header (Matches your parse shifts)
         uint32_t cubeHeader = ((cube.x & 0x1F) << 27) |
                               ((cube.y & 0x1F) << 22) |
@@ -259,8 +259,8 @@ ExportResult LevelSetupBinaryExporter::Export(std::ostream& write, std::shared_p
     return OffsetEntry{ 0 };
 }
 
-ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
-    const auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+ExportResult MapModdingExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+    const auto map = std::static_pointer_cast<MapData>(raw);
     const auto symbol = GetSafeNode(node, "symbol", entryName);
 
     *replacement += ".yaml";
@@ -273,13 +273,13 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
 
     out << YAML::BeginMap;
     out << YAML::Key << "CubeCount";
-    out << YAML::Value << levelSetup->mCubes.size();
+    out << YAML::Value << map->mCubes.size();
     out << YAML::Key << "Cubes";
     out << YAML::Value;
 
     out << YAML::BeginSeq;
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         out << YAML::BeginMap;
         out << YAML::Key << "Position";
@@ -403,7 +403,7 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
     return std::nullopt;
 }
 
-std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
+std::optional<std::shared_ptr<IParsedData>> MapFactory::parse(
     std::vector<uint8_t>& buffer, YAML::Node& node) 
 {
     const auto symbol = GetSafeNode<std::string>(node, "symbol");
@@ -418,7 +418,7 @@ std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
 
         decodedData.assign(segment.data, segment.data + segment.size);
 
-        // BK64 LevelSetup Data Layout (after decompression):
+        // BK64 Map Data Layout (after decompression):
         // - No cube count header
         // - Data starts directly with packed cube headers
         // - Format: [CubeHeader1][NodeProps1...][Props1...][CubeHeader2][NodeProps2...]...
@@ -529,7 +529,7 @@ std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
             cubes.push_back(cube);
         }
 
-        return std::make_shared<LevelSetupData>(cubes);
+        return std::make_shared<MapData>(cubes);
 
     } catch (const std::exception& e) {
         SPDLOG_ERROR("Parsing Failure for {}: {}", symbol, e.what());

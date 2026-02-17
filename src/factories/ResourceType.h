@@ -71,7 +71,7 @@ enum class ResourceType {
     BKModel = 0x424B4D4F,           // BKMO  
     BKDemoInput = 0x424B4449,       // BKDI
     BKDialog = 0x424B444C,          // BKDL
-    BKLevelSetup = 0x424B4C53,      // BKLS
+    BKMap = 0x424B4D50,            // BKMP
     BKGruntyQuestion = 0x424B4751,  // BKGQ
     BKQuizQuestion = 0x424B5151,    // BKQQ
 
