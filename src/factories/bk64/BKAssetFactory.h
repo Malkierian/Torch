@@ -11,12 +11,6 @@ namespace BK64 {
 /**
  * BKAssetInfo: Asset table entry defining location and type
  * 
- * Runtime Purpose:
- * - Central asset registry mapping Asset IDs to ROM/file offsets
- * - Loaded at boot via func_80324D44_loadAssetTable
- * - All asset loads (models, sprites, animations, levels) go through this table
- * - Asset ID → lookup in table → get offset → decompress → return data
- * 
  * Fields:
  * - offset: ROM address or file offset (BKZIP compressed if compressionFlag != 0)
  * - compressionFlag: 0 = uncompressed, 1 = BKZIP compressed, 2 = MIO0, 3 = YAY0
@@ -26,46 +20,27 @@ namespace BK64 {
  * 
  * Usage Flow:
  *   getModel3d(0x2d5) → assetTable[0x2d5] → offset=0x1A2400, compression=1
- *   → Decompressor::BKZIP(ROM + 0x1A2400) → ModelFactory::parse()
+ *   -> Decompressor::BKZIP(ROM + 0x1A2400) → ModelFactory::parse()
  */
 typedef struct BKAssetInfo {
-    uint32_t offset;          // ROM/file offset to asset data
-    int16_t compressionFlag;  // Compression type (0=none, 1=BKZIP, 2=MIO0, 3=YAY0)
-    int16_t tFlag;            // Type flag (asset category)
-    int32_t assetMode;        // Loading mode (immediate/deferred/cached)
-    int32_t index;            // Original asset index
+    uint32_t offset;
+    int16_t compressionFlag;
+    int16_t tFlag;
+    int32_t assetMode;
+    int32_t index;
 } BKAssetInfo;
 
-/**
- * BKAssetType: Asset category enumeration
- * 
- * Runtime Purpose:
- * - Determines which factory/loader to use for asset data
- * - Corresponds to different overlay functions for specialized loading
- * 
- * Type Ranges (Asset ID → Type):
- *   0x000 - 0x0FF: Animations (skeletal animation data)
- *   0x100 - 0x1FF: Binary (raw data blocks, overlay code)
- *   0x200 - 0x2CF: DemoInput (attract mode recordings)
- *   0x2D0 - 0x2D0: Dialog (Bottles' tutorials, character speech)
- *   0x2D1 - 0x571: Model (3D geometry, collision, textures)
- *   0x572 - 0x6FF: Sprite (2D billboards, UI elements)
- *   0x700 - 0x7FF: LevelSetup (cube spatial data)
- *   0x800 - 0x8FF: Midi (background music sequences)
- *   0x900 - 0x9FF: GruntyQuestion (Grunty's Furnace Fun questions)
- *   0xA00 - 0xAFF: QuizQuestion (quiz show questions)
- */
 enum class BKAssetType {
-    Animation,
-    Binary,
-    DemoInput,
-    Dialog,
-    GruntyQuestion,
-    LevelSetup,
-    Midi,
-    Model,
-    QuizQuestion,
-    Sprite,
+    Animation,      // 0x000 - 0x0FF
+    Binary,         // 0x100 - 0x1FF
+    DemoInput,      // 0x200 - 0x2CF
+    Dialog,         // 0x2D0 - 0x2D0
+    Model,          // 0x2D1 - 0x571
+    Sprite,         // 0x572 - 0x6FF
+    LevelSetup,     // 0x700 - 0x7FF
+    Midi,           // 0x800 - 0x8FF
+    GruntyQuestion, // 0x900 - 0x9FF
+    QuizQuestion,   // 0xA00 - 0xAFF
 };
 
 class BKAssetData : public IParsedData {

@@ -14,9 +14,9 @@ namespace BK64 {
  *   Offset 0x0E: mtx_id (s16) - Parent bone matrix ID
  */
 typedef struct BoneData {
-    float pos[3];          // unk0[3]: Bone position offset from parent [X, Y, Z]
-    uint16_t id;           // bone_id: Bone index
-    uint16_t parentId;     // mtx_id: Parent bone matrix ID (0xFFFF = root)
+    float pos[3];
+    uint16_t id;
+    uint16_t parentId;
 } BoneData;
 
 /**
@@ -28,8 +28,8 @@ typedef struct BoneData {
  *   Offset 0x02: tri_count (s16) - Number of triangles in this cube
  */
 typedef struct GeoCube {
-    uint16_t startTri;     // start_tri_index: Index of first triangle in this cube
-    uint16_t triCount;     // tri_count: Number of triangles in this cube
+    uint16_t startTri;
+    uint16_t triCount;
 } GeoCube;
 
 /**
@@ -42,9 +42,9 @@ typedef struct GeoCube {
  *   Offset 0x08: flags (s32) - Surface type flags
  */
 typedef struct CollisionTri {
-    uint16_t vtxIds[3];    // Vertex indices forming triangle (decomp: unk0[3])
-    uint16_t unk6;         // Additional flags/material ID
-    uint32_t flags;        // Surface type flags (walkable, water, damage, etc.)
+    uint16_t vtxIds[3];
+    uint16_t unk6;
+    uint32_t flags;
 } CollisionTri;
 
 /**
@@ -65,9 +65,9 @@ typedef struct Effect {
  *   Offset 0x04: frame_rate (f32) - Animation speed (frames per second)
  */
 typedef struct AnimTexture {
-    uint16_t frameSize;    // Bytes per texture frame (decomp: frame_size)
-    uint16_t frameCount;   // Number of animation frames (decomp: frame_cnt)
-    float frameRate;       // Animation speed in fps (decomp: frame_rate)
+    uint16_t frameSize;
+    uint16_t frameCount;
+    float frameRate;
 } AnimTexture;
 
 /**
@@ -90,11 +90,11 @@ typedef struct AnimTexture {
  *   cubeIndex = cubeX + cubeY * yStride + cubeZ * yStride * zStride
  */
 typedef struct CollisionHeader {
-    int16_t minIndex[3];   // AABB min corner [X, Y, Z] (decomp: unk0[3])
-    int16_t maxIndex[3];   // AABB max corner [X, Y, Z] (decomp: unk6[3])
-    uint16_t yStride;      // Cubes per row (decomp: unkC/y_stride)
-    uint16_t zStride;      // Cubes per layer (decomp: unkE/z_stride)
-    uint16_t geoCubeScale; // World units per cube (decomp: unk12/scale)
+    int16_t minIndex[3];
+    int16_t maxIndex[3];
+    uint16_t yStride;
+    uint16_t zStride;
+    uint16_t geoCubeScale;
 } CollisionHeader;
 
 /**
@@ -106,7 +106,7 @@ typedef struct CollisionHeader {
  *   Offset 0x04: cnt_4 (s16) - Number of bones (we calculate from vector.size())
  */
 typedef struct AnimationHeader {
-    float scalingFactor;   // unk0: Multiplier for animation keyframe values
+    float scalingFactor;
 } AnimationHeader;
 
 class ModelData : public IParsedData {

@@ -31,7 +31,7 @@ namespace BK64 {
  *   Offset 0x10: unk10_31:12, unk10_19:12, pad10_7:1, unk10_6:1, pad10_5:4, unk10_0:2 (u32)
  */
 typedef struct NodeProp {
-    int16_t x, y, z;        // position[3]: World position (s16 coordinates)
+    int16_t position[3];    // X, Y, Z world position (s16 coordinates)
     uint16_t radius: 9;     // selector_or_radius: Trigger radius for detection/volume
     uint16_t bit6: 6;       // category: Object type (6=actor, 7=warp, 9=trigger, 0xA=event)
     uint16_t bit0: 1;       // Active/enabled flag
@@ -75,7 +75,12 @@ typedef struct ModelProp {
  * SpriteProp: 2D billboard sprite (is_actor=0, is_3d=0) - 12 bytes  
  * Decomp: sprite_prop_s from props.h
  * 
- * Structure Layout (word0 - 32-bit big-endian):
+ * Complete Structure Layout (12 bytes):
+ *   Offset 0x00-0x03: word0 (32-bit packed) - sprite appearance/rendering parameters
+ *   Offset 0x04-0x09: unk4[3] (s16[3]) - X, Y, Z world position
+ *   Offset 0x0A-0x0B: wordA (16-bit packed) - animation frame + discriminator flags
+ * 
+ * Packed Field Layout (word0 - 32-bit big-endian at offset 0x00):
  *   Bits 31-20: spriteId (12 bits) → Asset ID = spriteId + SPRITE_ASSET_OFFSET (0x572)
  *   Bit 19: unk0_19 (1 bit)
  *   Bits 18-16: rgb_remove_red (3 bits, 0-7 color removal value)
@@ -85,7 +90,7 @@ typedef struct ModelProp {
  *   Bit 1: isMirrored (1 bit, horizontal flip)
  *   Bit 0: pad0_0 (1 bit)
  * 
- * Structure Layout (word8 - 16-bit big-endian at offset 0x0A):
+ * Packed Field Layout (wordA - 16-bit big-endian at offset 0x0A):
  *   Bits 15-11: frame (5 bits, animation frame index)
  *   Bits 10-6: unk8_10 (5 bits)
  *   Bit 5: unk8_5 (1 bit)
@@ -96,9 +101,9 @@ typedef struct ModelProp {
  *   Bit 0: isActorProp (1 bit, always 0 for sprites)
  */
 typedef struct SpriteProp {
-    uint32_t word0;         // Packed: spriteId:12, unk0_19:1, rgb_remove_red:3, rgb_remove_green:3, rgb_remove_blue:3, scale:8, isMirrored:1, pad0_0:1
-    int16_t unk4[3];        // position[3]: X, Y, Z (offset 0x04-0x09)
-    uint16_t word8;         // Packed: frame:5, unk8_10:5, flags:6
+    uint32_t word0;
+    int16_t unk4[3];
+    uint16_t wordA;
 } SpriteProp;
 
 /**
@@ -117,7 +122,7 @@ typedef struct SpriteProp {
  */
 typedef struct ActorProp {
     uint32_t marker;        // ActorMarker* pointer (runtime only)
-    int16_t x, y, z;        // Position cache from position[3]
+    int16_t position[3];    // X, Y, Z position cache
     uint16_t flags;         // Discriminator flags (isActorProp=1)
 } ActorProp;
 
@@ -136,11 +141,11 @@ typedef union Prop {
     struct {
         uint32_t pad0;
         int16_t unk4[3];
-        uint16_t pad8_15: 10;
-        uint16_t unk8_5: 1;
-        uint16_t unk8_4: 1;
-        uint16_t unk8_3: 1;
-        uint16_t unk8_2: 1;
+        uint16_t padA_15: 10;
+        uint16_t unkA_5: 1;
+        uint16_t unkA_4: 1;
+        uint16_t unkA_3: 1;
+        uint16_t unkA_2: 1;
         uint16_t is_3d: 1;
         uint16_t is_actor: 1;
     };

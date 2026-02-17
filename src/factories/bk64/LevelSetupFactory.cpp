@@ -133,7 +133,7 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
             write << "NodeProp " << symbol << "_Cube" << cubeIdx << "_NodeProps[] = {\n";
             for (const auto& nodeProp : cube.nodeProps) {
                 write << fourSpaceTab << "{\n";
-                write << fourSpaceTab << fourSpaceTab << "/* pos */ " << nodeProp.x << ", " << nodeProp.y << ", " << nodeProp.z << ",\n";
+                write << fourSpaceTab << fourSpaceTab << "/* pos */ " << nodeProp.position[0] << ", " << nodeProp.position[1] << ", " << nodeProp.position[2] << ",\n";
                 write << fourSpaceTab << fourSpaceTab << "/* radius */ " << nodeProp.radius << ",\n";
                 write << fourSpaceTab << fourSpaceTab << "/* type */ " << (uint32_t)nodeProp.bit6;
                 
@@ -178,12 +178,12 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
                     write << (int)prop.model.scale << ", ";
                     write << std::hex << "0x" << (int)prop.model.flags << std::dec;
                 } else {
-                    // SpriteProp: word0(4), unk4[3](6), word8(2)
+                    // SpriteProp: word0(4), unk4[3](6), wordA(2)
                     write << std::hex << "0x" << prop.sprite.word0 << std::dec << ", ";
                     write << "{ " << prop.sprite.unk4[0] << ", "
                           << prop.sprite.unk4[1] << ", "
                           << prop.sprite.unk4[2] << " }, ";
-                    write << std::hex << "0x" << prop.sprite.word8 << std::dec;
+                    write << std::hex << "0x" << prop.sprite.wordA << std::dec;
                 }
                 
                 write << " } },\n";
@@ -344,9 +344,9 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
                 out << YAML::Value;
                 out << YAML::Flow;
                 out << YAML::BeginMap;
-                out << YAML::Key << "X" << YAML::Value << nodeProp.x;
-                out << YAML::Key << "Y" << YAML::Value << nodeProp.y;
-                out << YAML::Key << "Z" << YAML::Value << nodeProp.z;
+                out << YAML::Key << "X" << YAML::Value << nodeProp.position[0];
+                out << YAML::Key << "Y" << YAML::Value << nodeProp.position[1];
+                out << YAML::Key << "Z" << YAML::Value << nodeProp.position[2];
                 out << YAML::EndMap;
                 
                 out << YAML::Key << "Radius" << YAML::Value << nodeProp.radius;
@@ -417,8 +417,8 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
                     out << YAML::Key << "Scale" << YAML::Value << (float)scale / 100.0f;
                     bool mirrored = (prop.sprite.word0 >> 1) & 0x1;
                     out << YAML::Key << "Mirrored" << YAML::Value << (mirrored ? "true" : "false");
-                    // Frame at bits [15:11] of word8 (16-bit big-endian at offset 0x0A)
-                    uint8_t frame = (prop.sprite.word8 >> 11) & 0x1F;
+                    // Frame at bits [15:11] of wordA (16-bit big-endian at offset 0x0A)
+                    uint8_t frame = (prop.sprite.wordA >> 11) & 0x1F;
                     out << YAML::Key << "Frame" << YAML::Value << (int)frame;
                 }
                 
@@ -497,9 +497,9 @@ std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
             // Parse NodeProps
             for (uint32_t j = 0; j < cube.prop1Cnt; j++) {
                 NodeProp nodeProp;
-                nodeProp.x = reader.ReadInt16();
-                nodeProp.y = reader.ReadInt16();
-                nodeProp.z = reader.ReadInt16();
+                nodeProp.position[0] = reader.ReadInt16();
+                nodeProp.position[1] = reader.ReadInt16();
+                nodeProp.position[2] = reader.ReadInt16();
 
                 uint16_t f1 = reader.ReadUInt16();
                 nodeProp.radius = (f1 >> 7) & 0x1FF;
@@ -556,12 +556,12 @@ std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
                     prop.model.scale = reader.ReadUByte();
                     prop.model.flags = reader.ReadUByte();
                 } else {
-                    // SpriteProp: word0(4bytes), unk4[3](6bytes), word8(2bytes)
+                    // SpriteProp: word0(4bytes), unk4[3](6bytes), wordA(2bytes)
                     prop.sprite.word0 = reader.ReadUInt32();
                     prop.sprite.unk4[0] = reader.ReadInt16();
                     prop.sprite.unk4[1] = reader.ReadInt16();
                     prop.sprite.unk4[2] = reader.ReadInt16();
-                    prop.sprite.word8 = reader.ReadUInt16();
+                    prop.sprite.wordA = reader.ReadUInt16();
                 }
                 cube.props.push_back(prop);
             }

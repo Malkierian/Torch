@@ -11,30 +11,13 @@ namespace BK64 {
 
 /**
  * SpriteData: 2D billboard sprite asset definition
- * 
- * Runtime Purpose:
- * - Defines animated 2D sprites for collectibles, particles, UI elements, effects
- * - Used by SpriteProp entries in LevelSetup (sprite_index + 0x572 = Asset ID)
- * - Loaded via getSprite() and rendered as camera-facing billboards
- * - Frame animation controlled by SpriteProp.frame field (selects chunk)
- * 
- * Format:
- * - Each sprite has multiple frames (animation)
- * - Each frame is composed of one or more chunks (texture pieces)
- * - Positions define chunk offsets relative to sprite center
- * - FormatCode determines texture format (RGBA16, RGBA32, CI4, CI8, etc.)
- * 
- * Usage Example:
- *   Jiggy collectible: 8 frames rotating animation, 4 chunks per frame
- *   Mumbo token: 1 frame static sprite, 1 chunk
- *   Splash particle: 12 frames expanding effect, 1-3 chunks per frame
  */
 class SpriteData : public IParsedData {
 public:
-    int16_t mFrameCount;       // Number of animation frames
-    int16_t mFormatCode;       // Texture format (RGBA16=0, RGBA32=1, CI4=2, CI8=3, etc.)
-    std::vector<uint16_t> mChunkCounts;  // Chunks per frame (length = mFrameCount)
-    std::vector<std::pair<int16_t, int16_t>> mPositions;  // (x, y) offset per chunk
+    int16_t mFrameCount; // Number of animation frames
+    int16_t mFormatCode; // Texture format (RGBA16=0, RGBA32=1, CI4=2, CI8=3, etc.)
+    std::vector<uint16_t> mChunkCounts; // Chunks per frame (length = mFrameCount)
+    std::vector<std::pair<int16_t, int16_t>> mPositions; // (x, y) offset per chunk
 
     SpriteData(int16_t frameCount, int16_t formatCode, std::vector<uint16_t> chunkCounts, std::vector<std::pair<int16_t, int16_t>> positions) : mFrameCount(frameCount), mFormatCode(formatCode), mChunkCounts(std::move(chunkCounts)), mPositions(std::move(positions)) {}
 };
