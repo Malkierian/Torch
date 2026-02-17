@@ -10,11 +10,11 @@ namespace BK64 {
  * Runtime Purpose:
  * - Defines bone hierarchy for animated 3D models (Banjo, Kazooie, enemies, NPCs)
  * - id specifies bone index, parentId links to parent bone (-1 for root)
- * - x, y, z are bone offsets from parent in local space
+ * - pos[3] are bone offsets from parent in local space [X, Y, Z]
  * - Used by animation system to apply keyframe rotations/translations
  */
 typedef struct BoneData {
-    float x, y, z;         // Bone position offset from parent
+    float pos[3];          // Bone position offset from parent [X, Y, Z]
     uint16_t id;           // Bone index
     uint16_t parentId;     // Parent bone index (0xFFFF = root)
 } BoneData;
@@ -38,7 +38,7 @@ typedef struct GeoCube {
  * 
  * Runtime Purpose:
  * - Defines collision geometry (floors, walls, ceilings, slopes)
- * - vtxId1/2/3 index into vertex array (defines triangle shape)
+ * - vtxIds[3] index into vertex array (defines triangle shape)
  * - flags determines surface type: walkable floor, wall, water, lava, ice, etc.
  * - Used by func_80309CF8_rayTriIntersect for player/actor collision response
  * 
@@ -50,9 +50,9 @@ typedef struct GeoCube {
  *   0x10: Ice (reduced friction)
  */
 typedef struct CollisionTri {
-    uint16_t vtxId1, vtxId2, vtxId3;  // Vertex indices forming triangle
-    uint16_t unk6;                     // Additional flags/material ID
-    uint32_t flags;                    // Surface type flags (walkable, water, damage, etc.)
+    uint16_t vtxIds[3];    // Vertex indices forming triangle [v0, v1, v2]
+    uint16_t unk6;         // Additional flags/material ID
+    uint32_t flags;        // Surface type flags (walkable, water, damage, etc.)
 } CollisionTri;
 
 /**
@@ -74,9 +74,6 @@ typedef struct Effect {
  * 
  * Runtime Purpose:
  * - Cycles through texture frames for animated surfaces (water, lava, scrolling)
- * - frameSize: bytes per texture frame
- * - frameCount: total animation frames
- * - frameRate: frames per second for playback
  * - Current frame = (gameTime * frameRate) % frameCount
  */
 typedef struct AnimTexture {
@@ -95,17 +92,17 @@ typedef struct AnimTexture {
  * - geoCubeScale: world units per cube edge (typically 100-200)
  * 
  * Grid Cell Calculation:
- *   cubeX = (worldX - minIndexX) / geoCubeScale
- *   cubeY = (worldY - minIndexY) / geoCubeScale
- *   cubeZ = (worldZ - minIndexZ) / geoCubeScale
+ *   cubeX = (worldX - minIndex[0]) / geoCubeScale
+ *   cubeY = (worldY - minIndex[1]) / geoCubeScale
+ *   cubeZ = (worldZ - minIndex[2]) / geoCubeScale
  *   cubeIndex = cubeX + cubeY * yStride + cubeZ * yStride * zStride
  */
 typedef struct CollisionHeader {
-    int16_t minIndexX, minIndexY, minIndexZ;  // AABB min corner
-    int16_t maxIndexX, maxIndexY, maxIndexZ;  // AABB max corner
-    uint16_t yStride;       // Cubes per row (X dimension)
-    uint16_t zStride;       // Cubes per layer (X × Y grid)
-    uint16_t geoCubeScale;  // World units per cube
+    int16_t minIndex[3];   // AABB min corner [X, Y, Z]
+    int16_t maxIndex[3];   // AABB max corner [X, Y, Z]
+    uint16_t yStride;      // Cubes per row (X dimension)
+    uint16_t zStride;      // Cubes per layer (X × Y grid)
+    uint16_t geoCubeScale; // World units per cube
 } CollisionHeader;
 
 /**

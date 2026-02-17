@@ -125,7 +125,7 @@ ExportResult ModelCodeExporter::Export(std::ostream& write, std::shared_ptr<IPar
         write << "BKBone " << symbol << "_Bones[] = {\n";
         for (const auto& bone : model->mBones) {
             write << fourSpaceTab << "{ ";
-            write << bone.x << "f, " << bone.y << "f, " << bone.z << "f, ";
+            write << bone.pos[0] << "f, " << bone.pos[1] << "f, " << bone.pos[2] << "f, ";
             write << bone.id << ", " << bone.parentId;
             write << " },\n";
         }
@@ -135,10 +135,10 @@ ExportResult ModelCodeExporter::Export(std::ostream& write, std::shared_ptr<IPar
     // Export collision data if present
     if (model->mHasCollision) {
         write << "BKCollisionHeader " << symbol << "_CollisionHeader = {\n";
-        write << fourSpaceTab << "/* minIndex */ { " << model->mCollisionHeader.minIndexX << ", " 
-              << model->mCollisionHeader.minIndexY << ", " << model->mCollisionHeader.minIndexZ << " },\n";
-        write << fourSpaceTab << "/* maxIndex */ { " << model->mCollisionHeader.maxIndexX << ", " 
-              << model->mCollisionHeader.maxIndexY << ", " << model->mCollisionHeader.maxIndexZ << " },\n";
+        write << fourSpaceTab << "/* minIndex */ { " << model->mCollisionHeader.minIndex[0] << ", " 
+              << model->mCollisionHeader.minIndex[1] << ", " << model->mCollisionHeader.minIndex[2] << " },\n";
+        write << fourSpaceTab << "/* maxIndex */ { " << model->mCollisionHeader.maxIndex[0] << ", " 
+              << model->mCollisionHeader.maxIndex[1] << ", " << model->mCollisionHeader.maxIndex[2] << " },\n";
         write << fourSpaceTab << "/* yStride */ " << model->mCollisionHeader.yStride << ",\n";
         write << fourSpaceTab << "/* zStride */ " << model->mCollisionHeader.zStride << ",\n";
         write << fourSpaceTab << "/* geoCubeScale */ " << model->mCollisionHeader.geoCubeScale << ",\n";
@@ -158,7 +158,7 @@ ExportResult ModelCodeExporter::Export(std::ostream& write, std::shared_ptr<IPar
             write << "BKCollisionTri " << symbol << "_CollisionTris[] = {\n";
             for (const auto& tri : model->mCollisionTris) {
                 write << fourSpaceTab << "{ ";
-                write << tri.vtxId1 << ", " << tri.vtxId2 << ", " << tri.vtxId3 << ", ";
+                write << "{ " << tri.vtxIds[0] << ", " << tri.vtxIds[1] << ", " << tri.vtxIds[2] << " }, ";
                 write << tri.unk6 << ", " << std::hex << "0x" << tri.flags << std::dec;
                 write << " },\n";
             }
@@ -455,9 +455,9 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
         for (uint16_t i = 0; i < boneCount; i++) {
             BoneData bone;
-            bone.x = reader.ReadFloat();
-            bone.y = reader.ReadFloat();
-            bone.z = reader.ReadFloat();
+            bone.pos[0] = reader.ReadFloat();
+            bone.pos[1] = reader.ReadFloat();
+            bone.pos[2] = reader.ReadFloat();
             bone.id = reader.ReadUInt16();
             bone.parentId = reader.ReadUInt16();
             modelData->mBones.push_back(bone);
@@ -468,12 +468,12 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         reader.Seek(modelOffset + collisionSetupOffset, LUS::SeekOffsetType::Start);
 
         modelData->mHasCollision = true;
-        modelData->mCollisionHeader.minIndexX = reader.ReadInt16();
-        modelData->mCollisionHeader.minIndexY = reader.ReadInt16();
-        modelData->mCollisionHeader.minIndexZ = reader.ReadInt16();
-        modelData->mCollisionHeader.maxIndexX = reader.ReadInt16();
-        modelData->mCollisionHeader.maxIndexY = reader.ReadInt16();
-        modelData->mCollisionHeader.maxIndexZ = reader.ReadInt16();
+        modelData->mCollisionHeader.minIndex[0] = reader.ReadInt16();
+        modelData->mCollisionHeader.minIndex[1] = reader.ReadInt16();
+        modelData->mCollisionHeader.minIndex[2] = reader.ReadInt16();
+        modelData->mCollisionHeader.maxIndex[0] = reader.ReadInt16();
+        modelData->mCollisionHeader.maxIndex[1] = reader.ReadInt16();
+        modelData->mCollisionHeader.maxIndex[2] = reader.ReadInt16();
         modelData->mCollisionHeader.yStride = reader.ReadUInt16();
         modelData->mCollisionHeader.zStride = reader.ReadUInt16();
         auto geoCubeCount = reader.ReadUInt16();
@@ -490,9 +490,9 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
         for (uint16_t i = 0; i < triCount; i++) {
             CollisionTri tri;
-            tri.vtxId1 = reader.ReadUInt16();
-            tri.vtxId2 = reader.ReadUInt16();
-            tri.vtxId3 = reader.ReadUInt16();
+            tri.vtxIds[0] = reader.ReadUInt16();
+            tri.vtxIds[1] = reader.ReadUInt16();
+            tri.vtxIds[2] = reader.ReadUInt16();
             tri.unk6 = reader.ReadUInt16();
             tri.flags = reader.ReadUInt32();
             modelData->mCollisionTris.push_back(tri);
