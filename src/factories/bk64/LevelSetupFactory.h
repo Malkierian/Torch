@@ -6,12 +6,13 @@
 namespace BK64 {
 
 /**
- * NodeProp: Spawn point, warp, trigger, or event marker
+ * NodeProp: Spawn point, warp, trigger, or event marker - 20 bytes
+ * Decomp: NodeProp from props.h
  * 
  * Runtime Purpose:
  * - Defines spatial triggers and spawn locations for actors, warps, and events
  * - Processed during level load (func_8033F5A0_loadLevel) to create ActorMarkers
- * - Category (bit6) determines behavior:
+ * - category field determines behavior:
  *   * 6 = Actor spawn point (creates dynamic entity via markerActorTypeArray dispatch)
  *   * 7 = Warp destination (teleports player to different map)
  *   * 9 = Trigger zone (activates events when player enters radius)
@@ -21,23 +22,23 @@ namespace BK64 {
  *   ROM → LevelSetupFactory parse() → NodeProp array → func_8033F5A0_loadLevel →
  *   ActorMarker creation → Actor spawning/event triggering via overlay callbacks
  * 
- * Bitfield Packing (20 bytes total):
- *   Offset 0x00: x, y, z positions (3 × int16_t)
- *   Offset 0x06: radius:9, bit6:6, bit0:1 (uint16_t)
- *   Offset 0x08: Actor/Warp/Event ID (uint16_t)
- *   Offset 0x0A: Marker ID (uint8_t), padding (uint8_t)
- *   Offset 0x0C: yaw:9, scale:23 (uint32_t)
- *   Offset 0x10: Two 12-bit IDs, initialization flags, function parameters (uint32_t)
+ * Structure Layout:
+ *   Offset 0x00: position[3] (s16[3]) - X, Y, Z world coordinates
+ *   Offset 0x06: selector_or_radius:9, category:6, bit0:1 (u16)
+ *   Offset 0x08: actorId (u16) - Actor/Warp/Event ID depending on category
+ *   Offset 0x0A: markerId (u8), padB (u8)
+ *   Offset 0x0C: yaw:9, scale:23 (u32)
+ *   Offset 0x10: unk10_31:12, unk10_19:12, pad10_7:1, unk10_6:1, pad10_5:4, unk10_0:2 (u32)
  */
 typedef struct NodeProp {
-    int16_t x, y, z;        // World position (s16 coordinates)
-    uint16_t radius: 9;     // Trigger radius (distance check threshold)
-    uint16_t bit6: 6;       // Category: 6=actor, 7=warp, 9=trigger, 0xA=event
+    int16_t x, y, z;        // position[3]: World position (s16 coordinates)
+    uint16_t radius: 9;     // selector_or_radius: Trigger radius for detection/volume
+    uint16_t bit6: 6;       // category: Object type (6=actor, 7=warp, 9=trigger, 0xA=event)
     uint16_t bit0: 1;       // Active/enabled flag
-    uint16_t unk8;          // Actor ID (bit6==6), Warp ID (bit6==7), or Event ID
-    uint8_t unkA;           // ActorMarker ID for lookup
-    uint8_t padB;           // Padding
-    uint32_t yaw: 9;        // Spawn rotation (*2 for degrees, 0-511 → 0-1022°)
+    uint16_t unk8;          // actorId: Actor/Warp/Event ID (meaning depends on category)
+    uint8_t unkA;           // markerId: ActorMarker ID for lookup table
+    uint8_t padB;           // Padding byte
+    uint32_t yaw: 9;        // Spawn rotation Y-axis (*2 for degrees, 0-511 → 0-1022°)
     uint32_t scale: 23;     // Spawn scale (fixed point, /1000.0 for actual scale)
     uint32_t unk10_31: 12;  // Secondary ID or overlay-specific parameter
     uint32_t unk10_19: 12;  // Additional parameters (animation phase, variant, etc.)
@@ -49,38 +50,75 @@ typedef struct NodeProp {
 
 /**
  * ModelProp: Static 3D model (is_actor=0, is_3d=1) - 12 bytes
- * Asset ID = (unk0 & 0xFFF) + 0x2D1
- * Yaw/Roll *2 for degrees, Scale /100.0 for actual scale
+ * Decomp: model_prop_s from props.h
+ * 
+ * Structure Layout:
+ *   Offset 0x00: unk0 (u16) - modelId:12, pad0_19:4
+ *   Offset 0x02: yaw (u8) - rotation Y-axis
+ *   Offset 0x03: roll (u8) - rotation around local axis
+ *   Offset 0x04: position[3] (s16[3]) - X, Y, Z world position
+ *   Offset 0x0A: scale (u8)
+ *   Offset 0x0B: flags (u8) - isModelProp:1, isActorProp:1, etc.
+ * 
+ * Asset ID = (modelId & 0xFFF) + MODEL_ASSET_OFFSET (0x2D1)
  */
 typedef struct ModelProp {
-    uint16_t unk0;          // model_index:12, pad:4
-    uint8_t yaw;
-    uint8_t roll;
-    int16_t position[3];
-    uint8_t scale;
-    uint8_t flags;
+    uint16_t unk0;          // modelId:12, pad0_19:4
+    uint8_t yaw;            // Y-axis rotation
+    uint8_t roll;           // Roll rotation
+    int16_t position[3];    // X, Y, Z world position
+    uint8_t scale;          // Scale value
+    uint8_t flags;          // Discriminator flags (isModelProp=1, isActorProp=0)
 } ModelProp;
 
 /**
- * SpriteProp: 2D billboard sprite (is_actor=0, is_3d=0) - 12 bytes
- * Asset ID = (word0 & 0xFFF) + 0x572
- * RGB at bits 13-21 (r:13-15, b:16-18, g:19-21), Scale /100.0
+ * SpriteProp: 2D billboard sprite (is_actor=0, is_3d=0) - 12 bytes  
+ * Decomp: sprite_prop_s from props.h
+ * 
+ * Structure Layout (word0 - 32-bit big-endian):
+ *   Bits 31-20: spriteId (12 bits) → Asset ID = spriteId + SPRITE_ASSET_OFFSET (0x572)
+ *   Bit 19: unk0_19 (1 bit)
+ *   Bits 18-16: rgb_remove_red (3 bits, 0-7 color removal value)
+ *   Bits 15-13: rgb_remove_green (3 bits, 0-7 color removal value)
+ *   Bits 12-10: rgb_remove_blue (3 bits, 0-7 color removal value)
+ *   Bits 9-2: scale (8 bits)
+ *   Bit 1: isMirrored (1 bit, horizontal flip)
+ *   Bit 0: pad0_0 (1 bit)
+ * 
+ * Structure Layout (word8 - 16-bit big-endian at offset 0x0A):
+ *   Bits 15-11: frame (5 bits, animation frame index)
+ *   Bits 10-6: unk8_10 (5 bits)
+ *   Bit 5: unk8_5 (1 bit)
+ *   Bit 4: isNotFeatherEggOrNote (1 bit)
+ *   Bit 3: unk8_3 (1 bit)
+ *   Bit 2: isCollisionResolved (1 bit)
+ *   Bit 1: isModelProp (1 bit, always 0 for sprites)
+ *   Bit 0: isActorProp (1 bit, always 0 for sprites)
  */
 typedef struct SpriteProp {
-    uint32_t word0;         // sprite_index:12, unk0_19:1, r:3, b:3, g:3, scale:8, mirrored:1
-    int16_t unk4[3];
-    uint16_t word8;         // frame:5, unk8_10:5, flags:6
+    uint32_t word0;         // Packed: spriteId:12, unk0_19:1, rgb_remove_red:3, rgb_remove_green:3, rgb_remove_blue:3, scale:8, isMirrored:1, pad0_0:1
+    int16_t unk4[3];        // position[3]: X, Y, Z (offset 0x04-0x09)
+    uint16_t word8;         // Packed: frame:5, unk8_10:5, flags:6
 } SpriteProp;
 
 /**
  * ActorProp: Dynamic entity created at runtime (is_actor=1) - 12 bytes
- * Created by func_8032F21C when actors spawn from NodeProp definitions.
- * ROM contains only ModelProp and SpriteProp.
+ * Decomp: actor_prop_s from props.h
+ * 
+ * Structure Layout:
+ *   Offset 0x00: marker (ActorMarker* - 4 bytes, runtime pointer)
+ *   Offset 0x04: position[3] (s16[3] - 6 bytes, X/Y/Z cache)
+ *   Offset 0x0A: flags (u16 - 2 bytes) - frame:5, unk8_10:5, isMirrored:1, 
+ *                isNotFeatherEggOrNote:1, unk8_3:1, isCollisionResolved:1, 
+ *                isModelProp:1 (0), isActorProp:1 (1)
+ * 
+ * NOTE: ActorProps are created at runtime when actors spawn from NodeProp entries.
+ *       ROM data contains ONLY ModelProp and SpriteProp - never ActorProp.
  */
 typedef struct ActorProp {
-    uint32_t marker;        // ActorMarker* (runtime only)
-    int16_t x, y, z;        // Position cache
-    uint16_t flags;
+    uint32_t marker;        // ActorMarker* pointer (runtime only)
+    int16_t x, y, z;        // Position cache from position[3]
+    uint16_t flags;         // Discriminator flags (isActorProp=1)
 } ActorProp;
 
 /**
