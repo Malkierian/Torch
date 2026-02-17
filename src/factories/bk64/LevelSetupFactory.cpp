@@ -398,13 +398,13 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
                     out << YAML::Key << "Scale" << YAML::Value << (float)prop.model.scale / 100.0f;
                 } else {
                     // SpriteProp - 2D billboard sprite
-                    uint16_t sprite_index = prop.sprite.word0 & 0xFFF;
+                    // Bit layout (32-bit big-endian): sprite_id[31:20], pad[19], r[18:16], g[15:13], b[12:10], scale[9:2], mirror[1], pad[0]
+                    uint16_t sprite_index = (prop.sprite.word0 >> 20) & 0xFFF;
                     out << YAML::Key << "SpriteIndex" << YAML::Value << sprite_index;
                     out << YAML::Key << "AssetID" << YAML::Value << YAML::Hex << (sprite_index + 0x572) << YAML::Dec;
-                    // Decomp: sprite_index:12, unk0_19:1, r:3, b:3, g:3, scale:8, mirrored:1
-                    uint8_t r = (prop.sprite.word0 >> 13) & 0x7;
-                    uint8_t b = (prop.sprite.word0 >> 16) & 0x7;
-                    uint8_t g = (prop.sprite.word0 >> 19) & 0x7;
+                    uint8_t r = (prop.sprite.word0 >> 16) & 0x7;
+                    uint8_t g = (prop.sprite.word0 >> 13) & 0x7;
+                    uint8_t b = (prop.sprite.word0 >> 10) & 0x7;
                     out << YAML::Key << "Color";
                     out << YAML::Value;
                     out << YAML::Flow;
@@ -413,11 +413,12 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
                     out << YAML::Key << "G" << YAML::Value << (int)g;
                     out << YAML::Key << "B" << YAML::Value << (int)b;
                     out << YAML::EndMap;
-                    uint8_t scale = (prop.sprite.word0 >> 22) & 0xFF;
+                    uint8_t scale = (prop.sprite.word0 >> 2) & 0xFF;
                     out << YAML::Key << "Scale" << YAML::Value << (float)scale / 100.0f;
-                    bool mirrored = (prop.sprite.word0 >> 30) & 0x1;
+                    bool mirrored = (prop.sprite.word0 >> 1) & 0x1;
                     out << YAML::Key << "Mirrored" << YAML::Value << (mirrored ? "true" : "false");
-                    uint8_t frame = prop.sprite.word8 & 0x1F;
+                    // Frame at bits [15:11] of word8 (16-bit big-endian at offset 0x0A)
+                    uint8_t frame = (prop.sprite.word8 >> 11) & 0x1F;
                     out << YAML::Key << "Frame" << YAML::Value << (int)frame;
                 }
                 
