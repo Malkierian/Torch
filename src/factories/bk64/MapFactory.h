@@ -169,42 +169,142 @@ typedef struct CubeData {
     std::vector<Prop> props;
 } CubeData;
 
-class LevelSetupData : public IParsedData {
+/**
+ * CameraNodeType1: Scripted/path camera (CAMERA_TYPE_1_UNKNOWN)
+ * Decomp: CameraNodeType1 from camera.h
+ * Size: 44 bytes (11 floats + 1 s32)
+ * 
+ * Usage: Likely used for cutscenes and scripted camera sequences.
+ * Has no per-frame update handler - camera follows predefined path using
+ * position, speed, acceleration, and orientation parameters.
+ */
+typedef struct CameraNodeType1 {
+    float position[3];      // Camera position
+    float horizontalSpeed;  // Horizontal movement speed
+    float verticalSpeed;    // Vertical movement speed
+    float rotation;         // Rotation speed
+    float accelaration;     // Acceleration value
+    float pitchYawRoll[3];  // Camera orientation (pitch, yaw, roll)
+    int32_t unknownFlag;    // Unknown flag (anded with 1, 2, 4)
+} CameraNodeType1;
+
+/**
+ * CameraNodeType2: Dynamic camera behavior (CAMERA_TYPE_2_DYNAMIC)
+ * Decomp: CameraNodeType2 from camera.h
+ * Size: 24 bytes (6 floats)
+ */
+typedef struct CameraNodeType2 {
+    float position[3];      // Camera position
+    float pitchYawRoll[3];  // Camera orientation (pitch, yaw, roll)
+} CameraNodeType2;
+
+/**
+ * CameraNodeType3: Static camera behavior (CAMERA_TYPE_3_STATIC)
+ * Decomp: CameraNodeType3 from camera.h
+ * Size: 52 bytes (12 floats + 1 s32)
+ */
+typedef struct CameraNodeType3 {
+    float position[3];      // Camera position
+    float horizontalSpeed;  // Horizontal movement speed
+    float verticalSpeed;    // Vertical movement speed
+    float rotation;         // Rotation speed
+    float accelaration;     // Acceleration value
+    float closeDistance;    // Near clipping distance
+    float farDistance;      // Far clipping distance
+    float pitchYawRoll[3];  // Camera orientation (pitch, yaw, roll)
+    int32_t unknownFlag;    // Unknown flag
+} CameraNodeType3;
+
+/**
+ * CameraNodeType4: Random camera behavior (CAMERA_TYPE_4_RANDOM)
+ * Decomp: CameraNodeType4 from camera.h
+ * Size: 4 bytes (1 s32)
+ */
+typedef struct CameraNodeType4 {
+    int32_t unknownFlag;    // Unknown flag value
+} CameraNodeType4;
+
+/**
+ * CameraNode: Camera path/behavior node
+ * Decomp: CameraNode from camera.h
+ * Format: marker 0x01 + index (s16) + type marker 0x02 + type (u8) + type-specific data
+ * 
+ * Camera types:
+ *   1 = Scripted/path camera (cutscenes, camera paths)
+ *   2 = Dynamic camera (follows player)
+ *   3 = Static camera (fixed position)
+ *   4 = Random camera (special behavior)
+ */
+typedef struct CameraNode {
+    int16_t index;          // Camera node index
+    uint8_t type;           // Node type (1=Scripted, 2=Dynamic, 3=Static, 4=Random)
+    union {
+        CameraNodeType1 type1;  // Type 1 = Scripted/path camera for cutscenes
+        CameraNodeType2 type2;  // Type 2 = Dynamic camera
+        CameraNodeType3 type3;  // Type 3 = Static camera
+        CameraNodeType4 type4;  // Type 4 = Random camera
+    } data;
+} CameraNode;
+
+/**
+ * LightingVector: Point light with fade radius
+ * Decomp: Lighting from gclights.c
+ * Format: marker 0x01 + position (f32[3]) + fade_radii (f32[2]) + rgb (s32[3])
+ */
+typedef struct LightingVector {
+    float position[3];      // X, Y, Z light position
+    float fadeRadii[2];     // Inner/outer fade distances
+    int32_t rgb[3];         // R, G, B color values
+} LightingVector;
+
+class MapData : public IParsedData {
   public:
+    // Cube data section (chunk type 0x01)
+    int32_t mCubeMin[3];    // Grid minimum bounds
+    int32_t mCubeMax[3];    // Grid maximum bounds
     std::vector<CubeData> mCubes;
+    
+    // Camera nodes section (chunk type 0x03)
+    std::vector<CameraNode> mCameraNodes;
+    
+    // Lighting section (chunk type 0x04)
+    std::vector<LightingVector> mLightingVectors;
 
-    LevelSetupData(std::vector<CubeData> cubes) : mCubes(std::move(cubes)) {}
+    MapData() {
+        mCubeMin[0] = mCubeMin[1] = mCubeMin[2] = 0;
+        mCubeMax[0] = mCubeMax[1] = mCubeMax[2] = 0;
+    }
 };
 
-class LevelSetupHeaderExporter : public BaseExporter {
+class MapHeaderExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupBinaryExporter : public BaseExporter {
+class MapBinaryExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupCodeExporter : public BaseExporter {
+class MapCodeExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupModdingExporter : public BaseExporter {
+class MapModdingExporter : public BaseExporter {
     ExportResult Export(std::ostream& write, std::shared_ptr<IParsedData> data, std::string& entryName,
                         YAML::Node& node, std::string* replacement) override;
 };
 
-class LevelSetupFactory : public BaseFactory {
+class MapFactory : public BaseFactory {
   public:
     std::optional<std::shared_ptr<IParsedData>> parse(std::vector<uint8_t>& buffer, YAML::Node& data) override;
     inline std::unordered_map<ExportType, std::shared_ptr<BaseExporter>> GetExporters() override {
         return { 
-            REGISTER(Code, LevelSetupCodeExporter) 
-            REGISTER(Header, LevelSetupHeaderExporter)                     
-            REGISTER(Binary, LevelSetupBinaryExporter)
-            REGISTER(Modding, LevelSetupModdingExporter)
+            REGISTER(Code, MapCodeExporter) 
+            REGISTER(Header, MapHeaderExporter)                     
+            REGISTER(Binary, MapBinaryExporter)
+            REGISTER(Modding, MapModdingExporter)
         };
     }
     

@@ -1,4 +1,4 @@
-#include "LevelSetupFactory.h"
+#include "MapFactory.h"
 
 #include <iomanip>
 #include "spdlog/spdlog.h"
@@ -22,6 +22,15 @@ static const std::unordered_map<uint8_t, std::string> sNodePropCategories = {
     { 0x9, "Trigger" },
     { 0xA, "Event" },
 };
+
+// Forward declarations for chunk parsers
+static void ParseCubeSection(LUS::BinaryReader& reader, std::shared_ptr<MapData>& map,
+                             size_t totalSize, const std::string& symbol);
+static void ParseCameraSection(LUS::BinaryReader& reader, std::shared_ptr<MapData>& map,
+                               const std::string& symbol);
+static void ParseLightingSection(LUS::BinaryReader& reader, std::shared_ptr<MapData>& map,
+                                 const std::string& symbol);
+
 
 // Flag bit masks
 static constexpr uint8_t PROP_FLAG_ACTOR    = 0x01;  // is_actor bit
@@ -47,9 +56,9 @@ static inline const char* GetNodePropCategoryName(uint8_t bit6) {
     return (it != sNodePropCategories.end()) ? it->second.c_str() : "Unknown";
 }
 
-ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+ExportResult MapHeaderExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     const auto symbol = GetSafeNode(node, "symbol", entryName);
-    auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+    auto map = std::static_pointer_cast<MapData>(raw);
 
     if (Companion::Instance->IsOTRMode()) {
         write << "static const ALIGN_ASSET(2) char " << symbol << "[] = \"__OTR__" << (*replacement) << "\";\n\n";
@@ -60,8 +69,8 @@ ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_p
         size_t lastSlash = parentPath.find_last_of('/');
         std::string dirPath = (lastSlash != std::string::npos) ? parentPath.substr(0, lastSlash) + "/" : "";
         
-        for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-            const auto& cube = levelSetup->mCubes[cubeIdx];
+        for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+            const auto& cube = map->mCubes[cubeIdx];
             
             if (!cube.nodeProps.empty()) {
                 write << "static const ALIGN_ASSET(2) char " << symbol << "_Cube" << cubeIdx << "_NodeProps[] = \"__OTR__" << dirPath << symbol << "_Cube" << cubeIdx << "_NodeProps\";\n";
@@ -76,8 +85,8 @@ ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_p
     }
 
     // Export NodeProp and Prop array declarations for each cube
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         if (!cube.nodeProps.empty()) {
             write << "extern NodeProp " << symbol << "_Cube" << cubeIdx << "_NodeProps[" << cube.nodeProps.size() << "];\n";
@@ -88,20 +97,20 @@ ExportResult LevelSetupHeaderExporter::Export(std::ostream& write, std::shared_p
         }
     }
     
-    write << "extern Cube " << symbol << "[" << levelSetup->mCubes.size() << "];\n";
+    write << "extern Cube " << symbol << "[" << map->mCubes.size() << "];\n";
     return std::nullopt;
 }
 
-ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+ExportResult MapCodeExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     auto offset = GetSafeNode<uint32_t>(node, "offset");
-    auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+    auto map = std::static_pointer_cast<MapData>(raw);
     const auto symbol = GetSafeNode(node, "symbol", entryName);
 
     // In OTR mode, export cube array with __OTR__ references
     if (Companion::Instance->IsOTRMode()) {
         write << "Cube " << symbol << "[] = {\n";
-        for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-            const auto& cube = levelSetup->mCubes[cubeIdx];
+        for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+            const auto& cube = map->mCubes[cubeIdx];
             write << fourSpaceTab << "{\n";
             write << fourSpaceTab << fourSpaceTab << "/* coord */ " << cube.x << ", " << cube.y << ", " << cube.z << ",\n";
             write << fourSpaceTab << fourSpaceTab << "/* prop1Cnt */ " << cube.prop1Cnt << ", /* prop2Cnt */ " << cube.prop2Cnt << ",\n";
@@ -126,8 +135,8 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
     }
 
     // Export NodeProps for each cube
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         if (!cube.nodeProps.empty()) {
             write << "NodeProp " << symbol << "_Cube" << cubeIdx << "_NodeProps[] = {\n";
@@ -194,8 +203,8 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
 
     // Export cube array
     write << "Cube " << symbol << "[] = {\n";
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         write << fourSpaceTab << "{\n";
         write << fourSpaceTab << fourSpaceTab << "/* coord */ " << cube.x << ", " << cube.y << ", " << cube.z << ",\n";
         write << fourSpaceTab << fourSpaceTab << "/* prop1Cnt */ " << cube.prop1Cnt << ", /* prop2Cnt */ " << cube.prop2Cnt << ",\n";
@@ -220,14 +229,14 @@ ExportResult LevelSetupCodeExporter::Export(std::ostream& write, std::shared_ptr
     return offset;
 }
 
-ExportResult LevelSetupBinaryExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+ExportResult MapBinaryExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     auto writer = LUS::BinaryWriter();
-    const auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+    const auto map = std::static_pointer_cast<MapData>(raw);
     const auto symbol = GetSafeNode(node, "symbol", entryName);
 
     // Export NodeProps and Props as separate assets first
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         // Export NodeProps array as separate resource
         if (!cube.nodeProps.empty()) {
@@ -250,9 +259,9 @@ ExportResult LevelSetupBinaryExporter::Export(std::ostream& write, std::shared_p
         }
     }
 
-    WriteHeader(writer, Torch::ResourceType::BKLevelSetup, 0);
+    WriteHeader(writer, Torch::ResourceType::BKMap, 0);
     
-    writer.Write((uint32_t)levelSetup->mCubes.size());
+    writer.Write((uint32_t)map->mCubes.size());
     
     // Extract parent directory from replacement path for child asset references
     std::string parentPath = *replacement;
@@ -260,8 +269,8 @@ ExportResult LevelSetupBinaryExporter::Export(std::ostream& write, std::shared_p
     std::string dirPath = (lastSlash != std::string::npos) ? parentPath.substr(0, lastSlash) + "/" : "";
     
     // Write cube headers and resource references
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         // Pack cube header (position, counts, boundary)
         uint32_t cubeHeader = ((cube.x & 0x1F) << 27) |
@@ -297,8 +306,8 @@ ExportResult LevelSetupBinaryExporter::Export(std::ostream& write, std::shared_p
     return OffsetEntry{ 0 };
 }
 
-ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
-    const auto levelSetup = std::static_pointer_cast<LevelSetupData>(raw);
+ExportResult MapModdingExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
+    const auto map = std::static_pointer_cast<MapData>(raw);
     const auto symbol = GetSafeNode(node, "symbol", entryName);
 
     *replacement += ".yaml";
@@ -311,13 +320,13 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
 
     out << YAML::BeginMap;
     out << YAML::Key << "CubeCount";
-    out << YAML::Value << levelSetup->mCubes.size();
+    out << YAML::Value << map->mCubes.size();
     out << YAML::Key << "Cubes";
     out << YAML::Value;
 
     out << YAML::BeginSeq;
-    for (size_t cubeIdx = 0; cubeIdx < levelSetup->mCubes.size(); cubeIdx++) {
-        const auto& cube = levelSetup->mCubes[cubeIdx];
+    for (size_t cubeIdx = 0; cubeIdx < map->mCubes.size(); cubeIdx++) {
+        const auto& cube = map->mCubes[cubeIdx];
         
         out << YAML::BeginMap;
         out << YAML::Key << "Position";
@@ -441,7 +450,7 @@ ExportResult LevelSetupModdingExporter::Export(std::ostream& write, std::shared_
     return std::nullopt;
 }
 
-std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
+std::optional<std::shared_ptr<IParsedData>> MapFactory::parse(
     std::vector<uint8_t>& buffer, YAML::Node& node) 
 {
     const auto symbol = GetSafeNode<std::string>(node, "symbol");
@@ -456,24 +465,88 @@ std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
 
         decodedData.assign(segment.data, segment.data + segment.size);
 
-        // BK64 LevelSetup Data Layout (after decompression):
-        // - No cube count header
-        // - Data starts directly with packed cube headers
-        // - Format: [CubeHeader1][NodeProps1...][Props1...][CubeHeader2][NodeProps2...]...
-        // - Parse sequentially until end of buffer
+        // BK64 Map File Format (after decompression):
+        // Multi-chunk format with type markers (as seen in gsworld_load):
+        //   Type 0x00: End of file
+        //   Type 0x01: Cube data section (grid bounds + cube definitions)
+        //   Type 0x02: Reserved/empty
+        //   Type 0x03: Camera node section
+        //   Type 0x04: Lighting vector section
         // 
-        // Structure sizes:
-        //   - Cube header: 4 bytes (packed: x:5, y:5, z:5, prop1Cnt:6, prop2Cnt:6, unk:5)
-        //   - NodeProp: 20 bytes (position, radius, type, ID, yaw, scale, flags)
-        //   - Prop: 12 bytes (raw union of ActorProp/ModelProp/SpriteProp)
+        // Cube Section Format (type 0x01):
+        //   - Min cube position (s32[3])
+        //   - Max cube position (s32[3])
+        //   - For each cube in grid: CubeHeader + NodeProps + Props
+        //   - CubeHeader: 4 bytes (x:5, y:5, z:5, prop1Cnt:6, prop2Cnt:6, unk0_4:5)
+        //   - NodeProp: 20 bytes each
+        //   - Prop: 12 bytes each
 
         LUS::BinaryReader reader(decodedData.data(), decodedData.size());
         reader.SetEndianness(Torch::Endianness::Big);
 
-        std::vector<CubeData> cubes;
+        auto map = std::make_shared<MapData>();
 
-        while (reader.GetBaseAddress() + 4 <= decodedData.size()) {
-            CubeData cube;
+        // Parse chunks until end marker (0x00) or end of data
+        while (reader.GetBaseAddress() < decodedData.size()) {
+            uint8_t chunkType = reader.ReadUByte();
+            
+            if (chunkType == 0x00) {
+                // End of file marker
+                break;
+            }
+            else if (chunkType == 0x01) {
+                // Cube data section
+                ParseCubeSection(reader, map, decodedData.size(), symbol);
+            }
+            else if (chunkType == 0x02) {
+                // Reserved/empty chunk (from decomp)
+                continue;
+            }
+            else if (chunkType == 0x03) {
+                // Camera node section
+                ParseCameraSection(reader, map, symbol);
+            }
+            else if (chunkType == 0x04) {
+                // Lighting vector section
+                ParseLightingSection(reader, map, symbol);
+            }
+            else {
+                SPDLOG_WARN("Unknown chunk type 0x{:02X} at offset 0x{:X} in asset {}", 
+                            chunkType, reader.GetBaseAddress() - 1, symbol);
+                break;
+            }
+        }
+
+        return map;
+
+    } catch (const std::exception& e) {
+        SPDLOG_ERROR("MapFactory parse error for {}: {}", symbol, e.what());
+        return std::nullopt;
+    }
+}
+
+// Helper: Parse cube data section (chunk type 0x01)
+static void ParseCubeSection(LUS::BinaryReader& reader, std::shared_ptr<MapData>& map,
+                             size_t totalSize, const std::string& symbol) 
+{
+    // Read grid bounds
+    map->mCubeMin[0] = reader.ReadInt32();
+    map->mCubeMin[1] = reader.ReadInt32();
+    map->mCubeMin[2] = reader.ReadInt32();
+    map->mCubeMax[0] = reader.ReadInt32();
+    map->mCubeMax[1] = reader.ReadInt32();
+    map->mCubeMax[2] = reader.ReadInt32();
+
+    // Parse cubes until we hit a chunk marker or end of expected data
+    while (reader.GetBaseAddress() + 4 <= totalSize) {
+        // Peek ahead to check if next byte is a chunk marker (< 0x10)
+        uint8_t possibleMarker = reader.GetBuffer()[reader.GetBaseAddress()];
+        if (possibleMarker < 0x10 && reader.GetBaseAddress() + 4 < totalSize) {
+            // Likely a new chunk marker, stop parsing cubes
+            break;
+        }
+
+        CubeData cube;
             uint32_t raw = reader.ReadUInt32();
 
             cube.x        = (raw >> 27) & 0x1F;
@@ -566,14 +639,149 @@ std::optional<std::shared_ptr<IParsedData>> LevelSetupFactory::parse(
                 cube.props.push_back(prop);
             }
 
-            cubes.push_back(cube);
+            map->mCubes.push_back(cube);
         }
+}
 
-        return std::make_shared<LevelSetupData>(cubes);
+// Helper: Parse camera node section (chunk type 0x03)
+static void ParseCameraSection(LUS::BinaryReader& reader, std::shared_ptr<MapData>& map,
+                               const std::string& symbol)
+{
+    // Camera nodes format: marker 0x01 + index (s16) + type marker 0x02 + type (u8) + type-specific data
+    // Loop until marker 0x00 or another chunk marker
+    while (reader.GetBaseAddress() + 1 < reader.GetLength()) {
+        uint8_t marker = reader.ReadUByte();
+        
+        if (marker == 0x00) {
+            // End of camera section
+            break;
+        } else if (marker == 0x01) {
+            CameraNode node;
+            node.index = reader.ReadInt16();
+            
+            // Read type marker and camera node type
+            uint8_t typeMarker = reader.ReadUByte();
+            if (typeMarker != 0x02) {
+                SPDLOG_WARN("Expected type marker 0x02, got 0x{:02X} at offset 0x{:X} in asset {}", 
+                            typeMarker, reader.GetBaseAddress() - 1, symbol);
+                break;
+            }
+            
+            node.type = reader.ReadUByte();
+            
+            // Parse type-specific data based on camera node type
+            switch (node.type) {
+                case 1: // CameraNodeType1 - Scripted/path camera for cutscenes (44 bytes)
+                    node.data.type1.position[0] = reader.ReadFloat();
+                    node.data.type1.position[1] = reader.ReadFloat();
+                    node.data.type1.position[2] = reader.ReadFloat();
+                    node.data.type1.horizontalSpeed = reader.ReadFloat();
+                    node.data.type1.verticalSpeed = reader.ReadFloat();
+                    node.data.type1.rotation = reader.ReadFloat();
+                    node.data.type1.accelaration = reader.ReadFloat();
+                    node.data.type1.pitchYawRoll[0] = reader.ReadFloat();
+                    node.data.type1.pitchYawRoll[1] = reader.ReadFloat();
+                    node.data.type1.pitchYawRoll[2] = reader.ReadFloat();
+                    node.data.type1.unknownFlag = reader.ReadInt32();
+                    break;
+                    
+                case 2: // CameraNodeType2 - Dynamic camera (24 bytes)
+                    node.data.type2.position[0] = reader.ReadFloat();
+                    node.data.type2.position[1] = reader.ReadFloat();
+                    node.data.type2.position[2] = reader.ReadFloat();
+                    node.data.type2.pitchYawRoll[0] = reader.ReadFloat();
+                    node.data.type2.pitchYawRoll[1] = reader.ReadFloat();
+                    node.data.type2.pitchYawRoll[2] = reader.ReadFloat();
+                    break;
+                    
+                case 3: // CameraNodeType3 - Static camera (52 bytes)
+                    node.data.type3.position[0] = reader.ReadFloat();
+                    node.data.type3.position[1] = reader.ReadFloat();
+                    node.data.type3.position[2] = reader.ReadFloat();
+                    node.data.type3.horizontalSpeed = reader.ReadFloat();
+                    node.data.type3.verticalSpeed = reader.ReadFloat();
+                    node.data.type3.rotation = reader.ReadFloat();
+                    node.data.type3.accelaration = reader.ReadFloat();
+                    node.data.type3.closeDistance = reader.ReadFloat();
+                    node.data.type3.farDistance = reader.ReadFloat();
+                    node.data.type3.pitchYawRoll[0] = reader.ReadFloat();
+                    node.data.type3.pitchYawRoll[1] = reader.ReadFloat();
+                    node.data.type3.pitchYawRoll[2] = reader.ReadFloat();
+                    node.data.type3.unknownFlag = reader.ReadInt32();
+                    break;
+                    
+                case 4: // CameraNodeType4 - Random camera (4 bytes)
+                    node.data.type4.unknownFlag = reader.ReadInt32();
+                    break;
+                    
+                default:
+                    SPDLOG_WARN("Unknown camera node type {} at offset 0x{:X} in asset {}", 
+                                node.type, reader.GetBaseAddress() - 1, symbol);
+                    break;
+            }
+            
+            map->mCameraNodes.push_back(node);
+        } else {
+            SPDLOG_WARN("Unexpected marker 0x{:02X} in camera section at offset 0x{:X} in asset {}", 
+                        marker, reader.GetBaseAddress() - 1, symbol);
+            break;
+        }
+    }
+}
 
-    } catch (const std::exception& e) {
-        SPDLOG_ERROR("Parsing Failure for {}: {}", symbol, e.what());
-        return std::nullopt;
+// Helper: Parse lighting vector section (chunk type 0x04)
+static void ParseLightingSection(LUS::BinaryReader& reader, std::shared_ptr<MapData>& map,
+                                 const std::string& symbol)
+{
+    // Lighting format: marker 0x01 + position (f32[3]) + fade_radii (f32[2]) + rgb (s32[3])
+    // Loop until marker 0x00 or another chunk marker
+    while (reader.GetBaseAddress() + 1 < reader.GetLength()) {
+        uint8_t marker = reader.ReadUByte();
+        
+        if (marker == 0x00) {
+            // End of lighting section
+            break;
+        } else if (marker == 0x01) {
+            LightingVector light;
+            
+            // Read position marker + data
+            uint8_t posMarker = reader.ReadUByte();
+            if (posMarker != 0x02) {
+                SPDLOG_WARN("Expected position marker 0x02, got 0x{:02X} at offset 0x{:X} in asset {}", 
+                            posMarker, reader.GetBaseAddress() - 1, symbol);
+                break;
+            }
+            light.position[0] = reader.ReadFloat();
+            light.position[1] = reader.ReadFloat();
+            light.position[2] = reader.ReadFloat();
+            
+            // Read fade radii marker + data
+            uint8_t fadeMarker = reader.ReadUByte();
+            if (fadeMarker != 0x03) {
+                SPDLOG_WARN("Expected fade marker 0x03, got 0x{:02X} at offset 0x{:X} in asset {}", 
+                            fadeMarker, reader.GetBaseAddress() - 1, symbol);
+                break;
+            }
+            light.fadeRadii[0] = reader.ReadFloat();
+            light.fadeRadii[1] = reader.ReadFloat();
+            
+            // Read RGB marker + data
+            uint8_t rgbMarker = reader.ReadUByte();
+            if (rgbMarker != 0x04) {
+                SPDLOG_WARN("Expected RGB marker 0x04, got 0x{:02X} at offset 0x{:X} in asset {}", 
+                            rgbMarker, reader.GetBaseAddress() - 1, symbol);
+                break;
+            }
+            light.rgb[0] = reader.ReadInt32();
+            light.rgb[1] = reader.ReadInt32();
+            light.rgb[2] = reader.ReadInt32();
+            
+            map->mLightingVectors.push_back(light);
+        } else {
+            SPDLOG_WARN("Unexpected marker 0x{:02X} in lighting section at offset 0x{:X} in asset {}", 
+                        marker, reader.GetBaseAddress() - 1, symbol);
+            break;
+        }
     }
 }
 

@@ -37,7 +37,7 @@ enum class BKAssetType {
     Dialog,         // 0x2D0 - 0x2D0
     Model,          // 0x2D1 - 0x571
     Sprite,         // 0x572 - 0x6FF
-    LevelSetup,     // 0x700 - 0x7FF
+    Map,            // 0x700 - 0x7FF
     Midi,           // 0x800 - 0x8FF
     GruntyQuestion, // 0x900 - 0x9FF
     QuizQuestion,   // 0xA00 - 0xAFF

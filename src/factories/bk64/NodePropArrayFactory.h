@@ -5,7 +5,7 @@
 
 namespace BK64 {
 
-// Forward declare NodeProp from LevelSetupFactory.h
+// Forward declare NodeProp from MapFactory.h
 struct NodeProp;
 
 class NodePropArrayData : public IParsedData {
