@@ -154,10 +154,7 @@ typedef struct CollisionHeader {
 typedef struct AnimationHeader {
     float scalingFactor;   // unk0: Multiplier for animation keyframe values
 } AnimationHeader;
-    
-namespace Model {
 
-} // namespace Model
 class ModelData : public IParsedData {
   public:
     uint16_t mGeoType;
