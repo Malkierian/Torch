@@ -620,8 +620,28 @@ static void ReadCubeContent(LUS::BinaryReader& reader, CubeData& cube, const std
 
                 cube.nodeProps.push_back(nodeProp);
             } else {
-                // OtherNode (0x06 format): 12 bytes each, skip for now
-                reader.Seek(reader.GetBaseAddress() + 12, LUS::SeekOffsetType::Start);
+                // OtherNode (0x06 format): 12 bytes - possible legacy format from certain ROM versions
+                // NOTE: The decomp has unclear/buggy code for this format. It might be:
+                //   - Unused beta/prototype code
+                //   - PAL-specific format 
+                //   - Early ROM revision format
+                // Structure is mostly padding with no spatial/category data like NodeProp.
+                
+                uint32_t word0 = reader.ReadUInt32();  // pad0[4]
+                uint32_t word4 = reader.ReadUInt32();  // bitfields (mostly padding, some flags)
+                uint32_t word8 = reader.ReadUInt32();  // pad8[4]
+                
+                // Since OtherNode has no useful spatial data, we can either:
+                //   A) Zero-initialize a NodeProp (loses flag bits but safe)
+                //   B) Skip it entirely (may break level if this data is actually used)
+                // 
+                // Option A with log
+                NodeProp nodeProp = {};  // Zero all fields
+                cube.nodeProps.push_back(nodeProp);
+                
+                SPDLOG_WARN("[BK64:MAP] Encountered OtherNode (0x06 format) at offset 0x{:X} in asset {}. "
+                            "Converted to zero-initialized NodeProp. If this ROM version is important, "
+                            "spatial data may be incomplete.", reader.GetBaseAddress() - 12, symbol);
             }
         }
     }
