@@ -558,6 +558,13 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
     if (animatedTextureOffset != 0) {
         reader.Seek(modelOffset + animatedTextureOffset, LUS::SeekOffsetType::Start);
+
+        // Register segment 4 so G_SETTIMG 0x04000000 (the runtime animated-texture
+        // placeholder) resolves to the first frame's texture data during export.
+        if (textureSetupOffset != 0) {
+            Companion::Instance->SetCompressedSegment(4, fileOffset, modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE);
+        }
+
         for (uint32_t i = 0; i < ANIM_TEXTURE_LIST_COUNT; i++) {
             AnimTexture animTexture;
             animTexture.frameSize = reader.ReadUInt16();
@@ -566,7 +573,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
             // Set Segment to frame 0 texture
             if (animTexture.frameSize != 0) {
-                Companion::Instance->SetCompressedSegment(15 - i, fileOffset, modelOffset + modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE);
+                Companion::Instance->SetCompressedSegment(15 - i, fileOffset, modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE);
             }
             
             modelData->mAnimTextures.push_back(animTexture);

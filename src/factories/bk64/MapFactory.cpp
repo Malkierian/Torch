@@ -306,6 +306,9 @@ ExportResult MapBinaryExporter::Export(std::ostream& write, std::shared_ptr<IPar
             case 4:
                 writer.Write(cam.data.type4.unknownFlag);
                 break;
+            case 0:
+                // Type 0 is a valid empty node with no data fields
+                break;
             default:
                 SPDLOG_WARN("[BK64:MAP] Binary export: unknown camera type {}", cam.type);
                 break;
