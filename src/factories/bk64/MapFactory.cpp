@@ -620,28 +620,27 @@ static void ReadCubeContent(LUS::BinaryReader& reader, CubeData& cube, const std
 
                 cube.nodeProps.push_back(nodeProp);
             } else {
-                // OtherNode (0x06 format): 12 bytes - possible legacy format from certain ROM versions
-                // NOTE: The decomp has unclear/buggy code for this format. It might be:
-                //   - Unused beta/prototype code
-                //   - PAL-specific format 
-                //   - Early ROM revision format
-                // Structure is mostly padding with no spatial/category data like NodeProp.
+                // OtherNode (0x06 format): 12 bytes - DEAD CODE PATH
+                // Analysis shows this format is never used in any released ROM (US v1.0/v1.1, PAL, JP).
+                // The decomp has a buffer overflow bug in this code path (allocates 12 bytes, copies 20),
+                // and all runtime code assumes 20-byte NodeProp structure with position/category fields.
+                // This is likely:
+                //   - Unused beta/prototype code compiled in but never called
+                //   - Decompiler artifact from misinterpreted conditional branches
+                // This handler exists only as a safety net for corrupted/modified ROMs.
                 
                 uint32_t word0 = reader.ReadUInt32();  // pad0[4]
                 uint32_t word4 = reader.ReadUInt32();  // bitfields (mostly padding, some flags)
                 uint32_t word8 = reader.ReadUInt32();  // pad8[4]
                 
-                // Since OtherNode has no useful spatial data, we can either:
-                //   A) Zero-initialize a NodeProp (loses flag bits but safe)
-                //   B) Skip it entirely (may break level if this data is actually used)
-                // 
-                // Option A with log
+                // Convert to zero-initialized NodeProp to maintain structure
                 NodeProp nodeProp = {};  // Zero all fields
                 cube.nodeProps.push_back(nodeProp);
                 
-                SPDLOG_WARN("[BK64:MAP] Encountered OtherNode (0x06 format) at offset 0x{:X} in asset {}. "
-                            "Converted to zero-initialized NodeProp. If this ROM version is important, "
-                            "spatial data may be incomplete.", reader.GetBaseAddress() - 12, symbol);
+                SPDLOG_ERROR("[BK64:MAP] Encountered OtherNode (0x06 format) at offset 0x{:X} in asset {}. "
+                             "This format is NEVER used in released ROMs and indicates ROM corruption or modification. "
+                             "Converted to zero-initialized NodeProp, but level data is likely broken.",
+                             reader.GetBaseAddress() - 12, symbol);
             }
         }
     }
