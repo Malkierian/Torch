@@ -290,6 +290,13 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
 
             auto ptr = w1;
             auto overlap = GFXDOverride::GetVtxOverlap(ptr);
+            if (!overlap.has_value() && IS_SEGMENTED(ptr)) {
+                uint32_t flatPtr = ptr;
+                if (Companion::Instance->GetCompressedSegmentOffset(&flatPtr)) {
+                    overlap = GFXDOverride::GetVtxOverlap(flatPtr);
+                    if (overlap.has_value()) ptr = flatPtr;
+                }
+            }
 
             if(overlap.has_value()){
                 auto ovnode = std::get<1>(overlap.value());

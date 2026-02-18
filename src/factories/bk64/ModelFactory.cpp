@@ -366,6 +366,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
     if (displayListSetupOffset != 0) {
         reader.Seek(modelOffset + displayListSetupOffset, LUS::SeekOffsetType::Start);
+        Companion::Instance->SetCompressedSegment(3, fileOffset, modelOffset + displayListSetupOffset + GFX_HEADER_SIZE);
         auto dlCount = reader.ReadUInt32();
         auto unkDLInfo = reader.ReadUInt32(); // checksum?
 
