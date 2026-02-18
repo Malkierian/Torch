@@ -1183,6 +1183,9 @@ void Companion::Process() {
         } else if (key == "F3DEX_MK64") {
             this->gConfig.gbi.version = GBIVersion::f3dex;
             this->gConfig.gbi.subversion = GBIMinorVersion::Mk64;
+        } else if (key == "F3DEX_BK64") {
+            this->gConfig.gbi.version = GBIVersion::f3dex;
+            this->gConfig.gbi.subversion = GBIMinorVersion::BK64;
         } else {
             SPDLOG_ERROR("Invalid GBI version");
             return;
