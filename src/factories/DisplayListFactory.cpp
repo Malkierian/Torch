@@ -326,33 +326,31 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                 w0 = hash >> 32;
                 w1 = hash & 0xFFFFFFFF;
             } else {
-                SPDLOG_WARN("Could not find vtx at 0x{:X}", ptr);
-            }
+                auto dec = Companion::Instance->GetNodeByAddr(ptr);
 
-            auto dec = Companion::Instance->GetNodeByAddr(ptr);
+                if(dec.has_value()){
+                    uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
+                    if(hash == 0) {
+                        throw std::runtime_error("Vtx hash is 0 for " + std::get<0>(dec.value()));
+                    }
 
-            if(dec.has_value()){
-                uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
-                if(hash == 0) {
-                    throw std::runtime_error("Vtx hash is 0 for " + std::get<0>(dec.value()));
+                    SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
+
+                    N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
+
+                    SPDLOG_INFO("gsSPVertex({}, {}, 0x{:X})", nvtx, didx, ptr);
+
+                    w0 = value.words.w0;
+                    w1 = value.words.w1;
+
+                    writer.Write(w0);
+                    writer.Write(w1);
+
+                    w0 = hash >> 32;
+                    w1 = hash & 0xFFFFFFFF;
+                } else {
+                    SPDLOG_WARN("Could not find vtx at 0x{:X}", ptr);
                 }
-
-                SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
-
-                N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
-
-                SPDLOG_INFO("gsSPVertex({}, {}, 0x{:X})", nvtx, didx, ptr);
-
-                w0 = value.words.w0;
-                w1 = value.words.w1;
-
-                writer.Write(w0);
-                writer.Write(w1);
-
-                w0 = hash >> 32;
-                w1 = hash & 0xFFFFFFFF;
-            } else {
-                SPDLOG_WARN("Could not find vtx at 0x{:X}", ptr);
             }
         }
 
