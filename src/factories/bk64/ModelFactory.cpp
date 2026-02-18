@@ -384,6 +384,12 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             if (opCode == GBI(G_ENDDL) && dlOffset != dlCount * GFX_CMD_SIZE) {
                 dlOffsets.emplace(dlOffset);
             }
+            // Also register G_DL jump targets within segment 3 as sub-DL split points.
+            // G_ENDDL splits only capture sequential sub-lists; intra-buffer G_DL jumps
+            // may target arbitrary offsets that aren't preceded by a G_ENDDL.
+            if (opCode == GBI(G_DL) && SEGMENT_NUMBER(w1) == 3) {
+                dlOffsets.emplace(SEGMENT_OFFSET(w1));
+            }
         }
 
         uint32_t count = 0;
