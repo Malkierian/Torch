@@ -32,7 +32,6 @@ uint8_t* bk_unzip(const uint8_t* in_buffer, uint32_t* size) {
         static_cast<uint32_t>(in_buffer[5]);
 
     if (expected_len == 0) {
-        SPDLOG_WARN("Detected 0-byte BK asset. Returning empty buffer.");
         *size = 0;
         return (uint8_t*)malloc(1); 
     }

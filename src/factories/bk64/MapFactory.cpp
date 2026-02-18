@@ -800,6 +800,7 @@ static void ParseCameraSection(LUS::BinaryReader& reader, std::shared_ptr<MapDat
 
         // Parse inner sub-loop (cameraNodeTypeN_fromFile):
         // Each type uses its own set of sub-markers, all loops end at 0x00.
+        // Type 0 is a valid empty node with NO inner data and NO inner 0x00 terminator.
         //
         // Type 1: 0x01→position[3]  0x02→hSpeed+vSpeed  0x03→rotation+accel
         //         0x04→pitchYawRoll[3]  0x05→unknownFlag
@@ -808,7 +809,9 @@ static void ParseCameraSection(LUS::BinaryReader& reader, std::shared_ptr<MapDat
         //         0x06→closeDist+farDist  0x04→pitchYawRoll[3]  0x05→unknownFlag
         // Type 4: 0x01→unknownFlag
         bool innerError = false;
-        while (!innerError && reader.GetBaseAddress() < reader.GetLength()) {
+        if (node.type == 0) {
+            // No inner data, no terminator — proceed directly to push
+        } else while (!innerError && reader.GetBaseAddress() < reader.GetLength()) {
             uint8_t sub = reader.ReadUByte();
             if (sub == 0x00) break;
 
