@@ -14,7 +14,7 @@ static const std::unordered_map<BKAssetType, std::string> sAssetSymbolPrefixes =
     { BKAssetType::DemoInput, "DEMO" },
     { BKAssetType::Dialog, "DIALOG" },
     { BKAssetType::GruntyQuestion, "GRUNTYQ" },
-    { BKAssetType::LevelSetup, "LEVEL_SETUP" },
+    { BKAssetType::Map, "MAP" },
     { BKAssetType::Midi, "MIDI" },
     { BKAssetType::Model, "MODEL" },
     { BKAssetType::QuizQuestion, "QUIZQ" },
@@ -22,21 +22,68 @@ static const std::unordered_map<BKAssetType, std::string> sAssetSymbolPrefixes =
 };
 
 ExportResult BKAssetHeaderExporter::Export(std::ostream &write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node &node, std::string* replacement) {
+    const auto symbol = GetSafeNode(node, "symbol", entryName);
 
+    if (Companion::Instance->IsOTRMode()) {
+        write << "static const ALIGN_ASSET(2) char " << symbol << "[] = \"__OTR__" << (*replacement) << "\";\n\n";
+        return std::nullopt;
+    }
+
+    write << "extern BKAssetTableEntry " << symbol << "[];\n";
     return std::nullopt;
 }
 
 ExportResult BKAssetCodeExporter::Export(std::ostream &write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node &node, std::string* replacement ) {
     auto assetTable = std::static_pointer_cast<BKAssetData>(raw);
     const auto offset = GetSafeNode<uint32_t>(node, "offset");
-    // TODO: Write Out Asset Table
+    const auto symbol = GetSafeNode(node, "symbol", entryName);
 
-    return offset;
+    write << "BKAssetTableEntry " << symbol << "[] = {\n";
+
+    for (const auto& assetInfo : assetTable->mAssetTableInfo) {
+        write << fourSpaceTab << "{ ";
+        write << "/* index */ " << assetInfo.index << ", ";
+        write << "/* offset */ " << assetInfo.offset << ", ";
+        write << "/* compressed */ " << assetInfo.compressionFlag << ", ";
+        write << "/* tFlag */ " << assetInfo.tFlag;
+        write << " }, // mode: " << assetInfo.assetMode;
+        
+        if (assetInfo.tFlag == 4) {
+            write << " (empty slot)";
+        }
+        
+        write << "\n";
+    }
+
+    write << "};\n\n";
+
+    // Calculate size: count + padding + entries
+    size_t size = 4 + 4 + (assetTable->mAssetTableInfo.size() * 8);
+
+    return offset + size;
 }
 
 ExportResult BKAssetBinaryExporter::Export(std::ostream &write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node &node, std::string* replacement ) {
-    // No Need To Export The Asset Table
-    return std::nullopt;
+    auto writer = LUS::BinaryWriter();
+    auto assetTable = std::static_pointer_cast<BKAssetData>(raw);
+
+    WriteHeader(writer, Torch::ResourceType::Blob, 0);
+
+    // Write asset count
+    writer.Write(static_cast<uint32_t>(assetTable->mAssetTableInfo.size()));
+    
+    // Write padding/unknown (always 0)
+    writer.Write(static_cast<uint32_t>(0));
+
+    // Write each asset table entry (8 bytes each)
+    for (const auto& assetInfo : assetTable->mAssetTableInfo) {
+        writer.Write(assetInfo.offset);           // uint32_t
+        writer.Write(assetInfo.compressionFlag);  // int16_t
+        writer.Write(assetInfo.tFlag);            // int16_t
+    }
+
+    writer.Finish(write);
+    return OffsetEntry{ 0 };
 }
 
 std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<uint8_t>& buffer, YAML::Node& node) {
@@ -87,7 +134,21 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
 
     for (uint32_t i = 0; i < assetCount - 1; i++) {
         auto assetInfo = assetTableInfo.at(i);
-        auto assetSize = assetTableInfo.at(i + 1).offset - assetInfo.offset;
+        
+        // Always start with the next asset's offset as baseline
+        uint32_t assetSize = assetTableInfo.at(i + 1).offset - assetInfo.offset;
+        
+        // If the next asset has the same offset (empty slot), find the next one with a different offset
+        // This gives us the true size boundary between asset groups
+        if (assetSize == 0) {
+            for (uint32_t j = i + 2; j < assetCount; j++) {
+                if (assetTableInfo.at(j).offset != assetInfo.offset) {
+                    assetSize = assetTableInfo.at(j).offset - assetInfo.offset;
+                    break;
+                }
+            }
+        }
+        
         auto assetOffset = dataStartRomOffset + assetInfo.offset;
         BKAssetType assetType;
 
@@ -116,7 +177,7 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
                 break;
             }
             case 2:
-                assetType = BKAssetType::LevelSetup;
+                assetType = BKAssetType::Map;
                 break;
             case 4: {
                 uint8_t* dataBuf;
@@ -188,8 +249,8 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
                 bkAssetNode["type"] = "BK64:GRUNTYQ";
                 Companion::Instance->AddSubFileAsset(bkAssetNode, assetSymbol, compressionType, assetSize);
                 break;
-            case BKAssetType::LevelSetup:
-                bkAssetNode["type"] = "BK64:LEVEL_SETUP";
+            case BKAssetType::Map:
+                bkAssetNode["type"] = "BK64:MAP";
                 Companion::Instance->AddSubFileAsset(bkAssetNode, assetSymbol, compressionType, assetSize);
                 break;
             case BKAssetType::Midi:
