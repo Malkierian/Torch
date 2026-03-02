@@ -290,6 +290,13 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
 
             auto ptr = w1;
             auto overlap = GFXDOverride::GetVtxOverlap(ptr);
+            if (!overlap.has_value() && IS_SEGMENTED(ptr)) {
+                uint32_t flatPtr = ptr;
+                if (Companion::Instance->GetCompressedSegmentOffset(&flatPtr)) {
+                    overlap = GFXDOverride::GetVtxOverlap(flatPtr);
+                    if (overlap.has_value()) ptr = flatPtr;
+                }
+            }
 
             if(overlap.has_value()){
                 auto ovnode = std::get<1>(overlap.value());
@@ -319,33 +326,31 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                 w0 = hash >> 32;
                 w1 = hash & 0xFFFFFFFF;
             } else {
-                SPDLOG_WARN("Could not find vtx at 0x{:X}", ptr);
-            }
+                auto dec = Companion::Instance->GetNodeByAddr(ptr);
 
-            auto dec = Companion::Instance->GetNodeByAddr(ptr);
+                if(dec.has_value()){
+                    uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
+                    if(hash == 0) {
+                        throw std::runtime_error("Vtx hash is 0 for " + std::get<0>(dec.value()));
+                    }
 
-            if(dec.has_value()){
-                uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
-                if(hash == 0) {
-                    throw std::runtime_error("Vtx hash is 0 for " + std::get<0>(dec.value()));
+                    SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
+
+                    N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
+
+                    SPDLOG_INFO("gsSPVertex({}, {}, 0x{:X})", nvtx, didx, ptr);
+
+                    w0 = value.words.w0;
+                    w1 = value.words.w1;
+
+                    writer.Write(w0);
+                    writer.Write(w1);
+
+                    w0 = hash >> 32;
+                    w1 = hash & 0xFFFFFFFF;
+                } else {
+                    SPDLOG_WARN("Could not find vtx at 0x{:X}", ptr);
                 }
-
-                SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
-
-                N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
-
-                SPDLOG_INFO("gsSPVertex({}, {}, 0x{:X})", nvtx, didx, ptr);
-
-                w0 = value.words.w0;
-                w1 = value.words.w1;
-
-                writer.Write(w0);
-                writer.Write(w1);
-
-                w0 = hash >> 32;
-                w1 = hash & 0xFFFFFFFF;
-            } else {
-                SPDLOG_WARN("Could not find vtx at 0x{:X}", ptr);
             }
         }
 
@@ -446,6 +451,12 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
 
             // Export texture segment addresses as segmented addresses
             if ((Companion::Instance->GetGBIMinorVersion() == GBIMinorVersion::Mk64) && ((SEGMENT_NUMBER(w1) == 0x03) || (SEGMENT_NUMBER(w1) == 0x05))) {
+                w1 |= 1;
+                writer.Write(w0);
+                writer.Write(w1);
+            // BK64 uses segment 4 as a runtime animated-texture slot — no static
+            // asset to resolve; pass the segmented address through for the runtime.
+            } else if ((Companion::Instance->GetGBIMinorVersion() == GBIMinorVersion::BK64) && (SEGMENT_NUMBER(w1) == 0x04)) {
                 w1 |= 1;
                 writer.Write(w0);
                 writer.Write(w1);
@@ -644,7 +655,7 @@ std::optional<std::shared_ptr<IParsedData>> DListFactory::parse(std::vector<uint
                     Companion::Instance->AddAsset(vtx);
                 }
             } else {
-                SPDLOG_WARN("Found vtx at 0x{:X}", w1);
+                SPDLOG_INFO("Found registered vtx at 0x{:X}", w1);
             }
         }
 

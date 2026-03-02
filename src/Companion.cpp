@@ -86,6 +86,7 @@
 #include "factories/bk64/DialogFactory.h"
 #include "factories/bk64/GeoLayoutFactory.h"
 #include "factories/bk64/GruntyQuestionFactory.h"
+#include "factories/bk64/MapFactory.h"
 #include "factories/bk64/QuizQuestionFactory.h"
 #include "factories/bk64/SpriteFactory.h"
 #include "factories/bk64/ModelFactory.h"
@@ -216,6 +217,7 @@ void Companion::Init(const ExportType type) {
     this->RegisterFactory("BK64:DIALOG", std::make_shared<BK64::DialogFactory>());
     this->RegisterFactory("BK64:GEO_LAYOUT", std::make_shared<BK64::GeoLayoutFactory>());
     this->RegisterFactory("BK64:GRUNTYQ", std::make_shared<BK64::GruntyQuestionFactory>());
+    this->RegisterFactory("BK64:MAP", std::make_shared<BK64::MapFactory>());
     this->RegisterFactory("BK64:QUIZQ", std::make_shared<BK64::QuizQuestionFactory>());
     this->RegisterFactory("BK64:MODEL", std::make_shared<BK64::ModelFactory>());
     this->RegisterFactory("BK64:SPRITE", std::make_shared<BK64::SpriteFactory>());
@@ -1177,6 +1179,9 @@ void Companion::Process() {
         } else if (key == "F3DEX_MK64") {
             this->gConfig.gbi.version = GBIVersion::f3dex;
             this->gConfig.gbi.subversion = GBIMinorVersion::Mk64;
+        } else if (key == "F3DEX_BK64") {
+            this->gConfig.gbi.version = GBIVersion::f3dex;
+            this->gConfig.gbi.subversion = GBIMinorVersion::BK64;
         } else {
             SPDLOG_ERROR("Invalid GBI version");
             return;
