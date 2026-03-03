@@ -536,8 +536,8 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
                 }
             }
             const uint32_t trueVtxCount = (vtxDataEnd - vtxDataStart) / kVtxRawSize;
-            if (trueVtxCount > static_cast<uint32_t>(modelData->mVtxHeader.count)) {
-                SPDLOG_DEBUG("[BKModel] {} vtx header count {} < section-derived count {} — using larger",
+            if (trueVtxCount != static_cast<uint32_t>(modelData->mVtxHeader.count)) {
+                SPDLOG_DEBUG("[BKModel] {} vtx header count {} vs section-derived count {} — using section-derived",
                              symbol, modelData->mVtxHeader.count, trueVtxCount);
                 modelData->mVtxHeader.count = static_cast<uint16_t>(trueVtxCount);
             }
