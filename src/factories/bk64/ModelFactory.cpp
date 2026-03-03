@@ -510,6 +510,39 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         modelData->mVtxHeader.count          = reader.ReadUInt16();
         modelData->mVtxHeader.globalNorm     = reader.ReadInt16();
 
+        // mVtxHeader.count may reflect only "geometric-unique" vertex positions while
+        // the ROM VTX buffer contains additional entries referenced by effects and
+        // other sub-systems (e.g. CS_NcubeB has count=12 but effects reference up to
+        // index 104).  Determine the true buffer size by finding the next adjacent
+        // model section that begins after the VTX data, then derive the count from
+        // the available byte range.
+        {
+            constexpr uint32_t kVtxRawSize = 16; // sizeof(Vtx) in the ROM
+            const uint32_t vtxDataStart = vertexSetupOffset + VTX_HEADER_SIZE;
+            uint32_t vtxDataEnd = static_cast<uint32_t>(modelOffsetEnd - modelOffset);
+            for (uint32_t candidate : {
+                     geoLayoutOffset,
+                     static_cast<uint32_t>(textureSetupOffset),
+                     displayListSetupOffset,
+                     unkHitboxInfoOffset,
+                     animationSetupOffset,
+                     collisionSetupOffset,
+                     modelUnk20Offset,
+                     effectsSetupOffset,
+                     modelUnk28Offset,
+                     animatedTextureOffset }) {
+                if (candidate > vtxDataStart && candidate < vtxDataEnd) {
+                    vtxDataEnd = candidate;
+                }
+            }
+            const uint32_t trueVtxCount = (vtxDataEnd - vtxDataStart) / kVtxRawSize;
+            if (trueVtxCount > static_cast<uint32_t>(modelData->mVtxHeader.count)) {
+                SPDLOG_DEBUG("[BKModel] {} vtx header count {} < section-derived count {} — using larger",
+                             symbol, modelData->mVtxHeader.count, trueVtxCount);
+                modelData->mVtxHeader.count = static_cast<uint16_t>(trueVtxCount);
+            }
+        }
+
         YAML::Node vtx;
         vtx["type"] = "VTX";
         vtx["count"] = modelData->mVtxHeader.count;
