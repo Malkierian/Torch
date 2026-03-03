@@ -109,32 +109,125 @@ typedef struct AnimationHeader {
     float scalingFactor;
 } AnimationHeader;
 
+/**
+ * VtxHeader: BKVertexList positional/bounding metadata (first 24 bytes, before Vtx[]).
+ * Written to the binary so the port can reconstruct the BKVertexList header at runtime
+ * without needing the raw ROM segment.
+ */
+typedef struct VtxHeader {
+    int16_t  minCoord[3];
+    int16_t  maxCoord[3];
+    int16_t  centerCoord[3];
+    int16_t  localNorm;
+    uint16_t count;
+    int16_t  globalNorm;
+} VtxHeader;
+
+/**
+ * TexInfo: Per-texture metadata stored in the BKTextureList header.
+ * tlutColors: 0x10 for CI4, 0x100 for CI8, 0 for non-paletted formats.
+ */
+typedef struct TexInfo {
+    uint16_t type;
+    uint8_t  width;
+    uint8_t  height;
+    uint16_t tlutColors;
+} TexInfo;
+
+/**
+ * Unk14_0 / _1 / _2: hitbox / bone-space definitions (BKModelUnk14List entries).
+ * Sizes: _0 = 24 bytes, _1 = 16 bytes, _2 = 12 bytes.
+ */
+typedef struct Unk14_0 {
+    int16_t scale1[3]; int16_t scale2[3];
+    int16_t pos[3];
+    uint8_t rot[3]; uint8_t unk15; int8_t animIndex; uint8_t pad;
+} Unk14_0;  // 24 bytes
+
+typedef struct Unk14_1 {
+    int16_t unk0; int16_t unk2;
+    int16_t pos[3];
+    uint8_t rot[3]; uint8_t unkD; int8_t animIndex; uint8_t pad;
+} Unk14_1;  // 16 bytes
+
+typedef struct Unk14_2 {
+    int16_t unk0;
+    int16_t unk2[3];
+    uint8_t unk8; int8_t unk9; uint8_t pad[2];
+} Unk14_2;  // 12 bytes
+
+/**
+ * Unk20_0: BKModelUnk20List entry (14 bytes + pad = 16).
+ */
+typedef struct Unk20_0 {
+    int16_t unk0[3]; int16_t unk6[3]; uint8_t unkC; uint8_t pad;
+} Unk20_0;  // 14 bytes raw, pad to 16
+
+/**
+ * Unk28_0: BKModelUnk28 variable-length entry.
+ */
+typedef struct Unk28_0 {
+    int16_t coord[3];
+    int8_t  animIndex;
+    std::vector<int16_t> vtxList;
+} Unk28_0;
+
 class ModelData : public IParsedData {
   public:
     uint16_t mGeoType;
     uint16_t mTriCount;
     uint16_t mVertCount;
-    
-    // Animation data
-    bool mHasAnimation;
-    AnimationHeader mAnimHeader;
+
+    // ── GEO layout ────────────────────────────────────────────────────────────
+    bool mHasGeo = false;
+
+    // ── Vertex list ───────────────────────────────────────────────────────────
+    bool      mHasVtx = false;
+    VtxHeader mVtxHeader{};
+
+    // ── Display lists ─────────────────────────────────────────────────────────
+    bool     mHasDL = false;
+    uint32_t mDLCount      = 0;   // total GFX command words across all sub-lists
+    uint32_t mDLUnkInfo    = 0;   // checksum/unknown from GFX header
+    uint32_t mGfxSubListCount = 0; // number of _GFX_* sub-assets
+
+    // ── Texture list ──────────────────────────────────────────────────────────
+    std::vector<TexInfo> mTexInfos;
+
+    // ── Animation data ────────────────────────────────────────────────────────
+    bool mHasAnimation = false;
+    AnimationHeader mAnimHeader{};
     std::vector<BoneData> mBones;
-    
-    // Collision data
-    bool mHasCollision;
-    CollisionHeader mCollisionHeader;
+
+    // ── Collision data ────────────────────────────────────────────────────────
+    bool mHasCollision = false;
+    CollisionHeader mCollisionHeader{};
     std::vector<GeoCube> mGeoCubes;
     std::vector<CollisionTri> mCollisionTris;
-    
-    // Effects
+
+    // ── Unk14 (hitbox) ────────────────────────────────────────────────────────
+    bool mHasUnk14 = false;
+    int16_t mUnk14Unk6 = 0;
+    std::vector<Unk14_0> mUnk14Entries0;
+    std::vector<Unk14_1> mUnk14Entries1;
+    std::vector<Unk14_2> mUnk14Entries2;
+
+    // ── Unk20 ─────────────────────────────────────────────────────────────────
+    bool mHasUnk20 = false;
+    std::vector<Unk20_0> mUnk20Entries;
+
+    // ── Effects ───────────────────────────────────────────────────────────────
     std::vector<Effect> mEffects;
-    
-    // Animated textures
+
+    // ── Unk28 ─────────────────────────────────────────────────────────────────
+    bool mHasUnk28 = false;
+    std::vector<Unk28_0> mUnk28Entries;
+
+    // ── Animated textures ─────────────────────────────────────────────────────
     std::vector<AnimTexture> mAnimTextures;
 
     ModelData(uint16_t geoType, uint16_t triCount, uint16_t vertCount)
-        : mGeoType(geoType), mTriCount(triCount), mVertCount(vertCount),
-          mHasAnimation(false), mHasCollision(false) {}
+        : mGeoType(geoType), mTriCount(triCount), mVertCount(vertCount) {}
 };
 
 class ModelHeaderExporter : public BaseExporter {

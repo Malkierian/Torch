@@ -201,10 +201,152 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
     const auto model = std::static_pointer_cast<ModelData>(raw);
 
     WriteHeader(writer, Torch::ResourceType::BKModel, 0);
-    
-    auto wrapper = Companion::Instance->GetCurrentWrapper();
 
-    writer.Write(1);
+    // ── Core ──────────────────────────────────────────────────────────────────
+    writer.Write(model->mGeoType);
+    writer.Write(model->mTriCount);
+    writer.Write(model->mVertCount);
+
+    // ── Presence flags ────────────────────────────────────────────────────────
+    writer.Write(static_cast<uint8_t>(model->mHasGeo        ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(model->mHasVtx        ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(model->mHasDL         ? 1 : 0));
+    writer.Write(static_cast<uint16_t>(model->mTexInfos.size()));
+    writer.Write(static_cast<uint8_t>(model->mHasAnimation  ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(model->mHasCollision  ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(model->mHasUnk14      ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(model->mHasUnk20      ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(!model->mEffects.empty() ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(model->mHasUnk28      ? 1 : 0));
+    writer.Write(static_cast<uint8_t>(!model->mAnimTextures.empty() ? 1 : 0));
+
+    // ── VTX header ────────────────────────────────────────────────────────────
+    if (model->mHasVtx) {
+        const auto& vh = model->mVtxHeader;
+        writer.Write(vh.minCoord[0]);    writer.Write(vh.minCoord[1]);    writer.Write(vh.minCoord[2]);
+        writer.Write(vh.maxCoord[0]);    writer.Write(vh.maxCoord[1]);    writer.Write(vh.maxCoord[2]);
+        writer.Write(vh.centerCoord[0]); writer.Write(vh.centerCoord[1]); writer.Write(vh.centerCoord[2]);
+        writer.Write(vh.localNorm);
+        writer.Write(vh.count);
+        writer.Write(vh.globalNorm);
+    }
+
+    // ── GFX / display-list info ───────────────────────────────────────────────
+    if (model->mHasDL) {
+        writer.Write(model->mDLCount);
+        writer.Write(model->mDLUnkInfo);
+        writer.Write(model->mGfxSubListCount);
+    }
+
+    // ── Texture metadata ──────────────────────────────────────────────────────
+    for (const auto& tex : model->mTexInfos) {
+        writer.Write(tex.type);
+        writer.Write(tex.width);
+        writer.Write(tex.height);
+        writer.Write(tex.tlutColors);
+    }
+
+    // ── Animation list ────────────────────────────────────────────────────────
+    if (model->mHasAnimation) {
+        writer.Write(model->mAnimHeader.scalingFactor);
+        writer.Write(static_cast<uint16_t>(model->mBones.size()));
+        for (const auto& bone : model->mBones) {
+            writer.Write(bone.pos[0]); writer.Write(bone.pos[1]); writer.Write(bone.pos[2]);
+            writer.Write(bone.id);
+            writer.Write(bone.parentId);
+        }
+    }
+
+    // ── Collision list ────────────────────────────────────────────────────────
+    if (model->mHasCollision) {
+        const auto& col = model->mCollisionHeader;
+        writer.Write(col.minIndex[0]); writer.Write(col.minIndex[1]); writer.Write(col.minIndex[2]);
+        writer.Write(col.maxIndex[0]); writer.Write(col.maxIndex[1]); writer.Write(col.maxIndex[2]);
+        writer.Write(col.yStride);
+        writer.Write(col.zStride);
+        writer.Write(col.geoCubeScale);
+        writer.Write(static_cast<uint16_t>(model->mGeoCubes.size()));
+        writer.Write(static_cast<uint16_t>(model->mCollisionTris.size()));
+        for (const auto& cube : model->mGeoCubes) {
+            writer.Write(cube.startTri);
+            writer.Write(cube.triCount);
+        }
+        for (const auto& tri : model->mCollisionTris) {
+            writer.Write(tri.vtxIds[0]); writer.Write(tri.vtxIds[1]); writer.Write(tri.vtxIds[2]);
+            writer.Write(tri.unk6);
+            writer.Write(tri.flags);
+        }
+    }
+
+    // ── Unk14 (hitbox) ────────────────────────────────────────────────────────
+    if (model->mHasUnk14) {
+        writer.Write(static_cast<int16_t>(model->mUnk14Entries0.size()));
+        writer.Write(static_cast<int16_t>(model->mUnk14Entries1.size()));
+        writer.Write(static_cast<int16_t>(model->mUnk14Entries2.size()));
+        writer.Write(model->mUnk14Unk6);
+        for (const auto& e : model->mUnk14Entries0) {
+            writer.Write(e.scale1[0]); writer.Write(e.scale1[1]); writer.Write(e.scale1[2]);
+            writer.Write(e.scale2[0]); writer.Write(e.scale2[1]); writer.Write(e.scale2[2]);
+            writer.Write(e.pos[0]); writer.Write(e.pos[1]); writer.Write(e.pos[2]);
+            writer.Write(e.rot[0]); writer.Write(e.rot[1]); writer.Write(e.rot[2]);
+            writer.Write(e.unk15); writer.Write(e.animIndex); writer.Write(e.pad);
+        }
+        for (const auto& e : model->mUnk14Entries1) {
+            writer.Write(e.unk0); writer.Write(e.unk2);
+            writer.Write(e.pos[0]); writer.Write(e.pos[1]); writer.Write(e.pos[2]);
+            writer.Write(e.rot[0]); writer.Write(e.rot[1]); writer.Write(e.rot[2]);
+            writer.Write(e.unkD); writer.Write(e.animIndex); writer.Write(e.pad);
+        }
+        for (const auto& e : model->mUnk14Entries2) {
+            writer.Write(e.unk0);
+            writer.Write(e.unk2[0]); writer.Write(e.unk2[1]); writer.Write(e.unk2[2]);
+            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]);
+        }
+    }
+
+    // ── Unk20 ─────────────────────────────────────────────────────────────────
+    if (model->mHasUnk20) {
+        writer.Write(static_cast<uint8_t>(model->mUnk20Entries.size()));
+        for (const auto& e : model->mUnk20Entries) {
+            writer.Write(e.unk0[0]); writer.Write(e.unk0[1]); writer.Write(e.unk0[2]);
+            writer.Write(e.unk6[0]); writer.Write(e.unk6[1]); writer.Write(e.unk6[2]);
+            writer.Write(e.unkC); writer.Write(e.pad);
+        }
+    }
+
+    // ── Effects ───────────────────────────────────────────────────────────────
+    if (!model->mEffects.empty()) {
+        writer.Write(static_cast<uint16_t>(model->mEffects.size()));
+        for (const auto& fx : model->mEffects) {
+            writer.Write(fx.dataInfo);
+            writer.Write(static_cast<uint16_t>(fx.vtxIndices.size()));
+            for (auto idx : fx.vtxIndices) {
+                writer.Write(idx);
+            }
+        }
+    }
+
+    // ── Unk28 ─────────────────────────────────────────────────────────────────
+    if (model->mHasUnk28) {
+        writer.Write(static_cast<int16_t>(model->mUnk28Entries.size()));
+        for (const auto& e : model->mUnk28Entries) {
+            writer.Write(e.coord[0]); writer.Write(e.coord[1]); writer.Write(e.coord[2]);
+            writer.Write(e.animIndex);
+            writer.Write(static_cast<int8_t>(e.vtxList.size()));
+            for (auto idx : e.vtxList) {
+                writer.Write(idx);
+            }
+        }
+    }
+
+    // ── Animated textures (always 4 slots) ───────────────────────────────────
+    if (!model->mAnimTextures.empty()) {
+        for (const auto& at : model->mAnimTextures) {
+            writer.Write(at.frameSize);
+            writer.Write(at.frameCount);
+            writer.Write(at.frameRate);
+        }
+    }
 
     writer.Finish(write);
 
@@ -247,6 +389,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
     
     if (geoLayoutOffset != 0) {
         SPDLOG_INFO("HAS GL {}", symbol);
+        modelData->mHasGeo = true;
         YAML::Node geoLayout;
         geoLayout["type"] = "BK64:GEO_LAYOUT";
         geoLayout["offset"] = modelOffset + geoLayoutOffset;
@@ -276,7 +419,8 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             std::string format;
             std::string ctype;
             uint32_t tlutSize = 0;
-            
+            uint16_t tlutColors = 0;
+
             YAML::Node texture;
             switch (textureType) {
                 case 0x1: {
@@ -293,6 +437,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
                     texture["ctype"] = "u8";
                     texture["tlut"] = tlutOffset;
                     tlutSize = 0x10;
+                    tlutColors = 0x10;
                     break;
                 }
                 case 0x2: {
@@ -309,6 +454,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
                     texture["ctype"] = "u8";
                     texture["tlut"] = tlutOffset;
                     tlutSize = 0x100;
+                    tlutColors = 0x100;
                     break;
                 }
                 case 0x4:
@@ -327,6 +473,14 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
                     throw std::runtime_error("BK64::ModelFactory: Invalid Texture Format Found " + std::to_string(textureType));
             }
 
+            // Store texture metadata for the binary exporter
+            TexInfo texInfo;
+            texInfo.type       = textureType;
+            texInfo.width      = static_cast<uint8_t>(width);
+            texInfo.height     = static_cast<uint8_t>(height);
+            texInfo.tlutColors = tlutColors;
+            modelData->mTexInfos.push_back(texInfo);
+
             uint32_t textureOffset = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE + textureDataOffset + tlutSize * sizeof(int16_t);
             texture["type"] = "TEXTURE";
             texture["width"] = width;
@@ -342,23 +496,56 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         reader.Seek(modelOffset + vertexSetupOffset, LUS::SeekOffsetType::Start);
         Companion::Instance->SetCompressedSegment(1, fileOffset, modelOffset + vertexSetupOffset + VTX_HEADER_SIZE);
 
-        auto minCoordsX = reader.ReadInt16();
-        auto minCoordsY = reader.ReadInt16();
-        auto minCoordsZ = reader.ReadInt16();
-        auto maxCoordsX = reader.ReadInt16();
-        auto maxCoordsY = reader.ReadInt16();
-        auto maxCoordsZ = reader.ReadInt16();
-        auto centerCoordsX = reader.ReadInt16();
-        auto centerCoordsY = reader.ReadInt16();
-        auto centerCoordsZ = reader.ReadInt16();
+        modelData->mHasVtx = true;
+        modelData->mVtxHeader.minCoord[0]    = reader.ReadInt16();
+        modelData->mVtxHeader.minCoord[1]    = reader.ReadInt16();
+        modelData->mVtxHeader.minCoord[2]    = reader.ReadInt16();
+        modelData->mVtxHeader.maxCoord[0]    = reader.ReadInt16();
+        modelData->mVtxHeader.maxCoord[1]    = reader.ReadInt16();
+        modelData->mVtxHeader.maxCoord[2]    = reader.ReadInt16();
+        modelData->mVtxHeader.centerCoord[0] = reader.ReadInt16();
+        modelData->mVtxHeader.centerCoord[1] = reader.ReadInt16();
+        modelData->mVtxHeader.centerCoord[2] = reader.ReadInt16();
+        modelData->mVtxHeader.localNorm      = reader.ReadInt16();
+        modelData->mVtxHeader.count          = reader.ReadUInt16();
+        modelData->mVtxHeader.globalNorm     = reader.ReadInt16();
 
-        auto largestDistToCenter = reader.ReadUInt16();
-        auto vtxCount = reader.ReadUInt16();
-        auto largestDistToOrigin = reader.ReadUInt16();
+        // mVtxHeader.count may reflect only "geometric-unique" vertex positions while
+        // the ROM VTX buffer contains additional entries referenced by effects and
+        // other sub-systems (e.g. CS_NcubeB has count=12 but effects reference up to
+        // index 104).  Determine the true buffer size by finding the next adjacent
+        // model section that begins after the VTX data, then derive the count from
+        // the available byte range.
+        {
+            constexpr uint32_t kVtxRawSize = 16; // sizeof(Vtx) in the ROM
+            const uint32_t vtxDataStart = vertexSetupOffset + VTX_HEADER_SIZE;
+            uint32_t vtxDataEnd = static_cast<uint32_t>(modelOffsetEnd - modelOffset);
+            for (uint32_t candidate : {
+                     geoLayoutOffset,
+                     static_cast<uint32_t>(textureSetupOffset),
+                     displayListSetupOffset,
+                     unkHitboxInfoOffset,
+                     animationSetupOffset,
+                     collisionSetupOffset,
+                     modelUnk20Offset,
+                     effectsSetupOffset,
+                     modelUnk28Offset,
+                     animatedTextureOffset }) {
+                if (candidate > vtxDataStart && candidate < vtxDataEnd) {
+                    vtxDataEnd = candidate;
+                }
+            }
+            const uint32_t trueVtxCount = (vtxDataEnd - vtxDataStart) / kVtxRawSize;
+            if (trueVtxCount > static_cast<uint32_t>(modelData->mVtxHeader.count)) {
+                SPDLOG_DEBUG("[BKModel] {} vtx header count {} < section-derived count {} — using larger",
+                             symbol, modelData->mVtxHeader.count, trueVtxCount);
+                modelData->mVtxHeader.count = static_cast<uint16_t>(trueVtxCount);
+            }
+        }
 
         YAML::Node vtx;
         vtx["type"] = "VTX";
-        vtx["count"] = vtxCount;
+        vtx["count"] = modelData->mVtxHeader.count;
         vtx["offset"] = modelOffset + vertexSetupOffset + VTX_HEADER_SIZE;
         vtx["symbol"] = symbol + "_VTX";
         Companion::Instance->AddAsset(vtx);
@@ -367,8 +554,11 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
     if (displayListSetupOffset != 0) {
         reader.Seek(modelOffset + displayListSetupOffset, LUS::SeekOffsetType::Start);
         Companion::Instance->SetCompressedSegment(3, fileOffset, modelOffset + displayListSetupOffset + GFX_HEADER_SIZE);
-        auto dlCount = reader.ReadUInt32();
+        modelData->mHasDL  = true;
+        auto dlCount   = reader.ReadUInt32();
         auto unkDLInfo = reader.ReadUInt32(); // checksum?
+        modelData->mDLCount   = dlCount;
+        modelData->mDLUnkInfo = unkDLInfo;
 
         std::set<uint32_t> dlOffsets;
         uint32_t dlOffset = 0;
@@ -401,55 +591,43 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             Companion::Instance->AddAsset(gfxNode);
             count++;
         }
+        modelData->mGfxSubListCount = count;
     }
 
     if (unkHitboxInfoOffset != 0) {
         reader.Seek(modelOffset + unkHitboxInfoOffset, LUS::SeekOffsetType::Start);
+        modelData->mHasUnk14 = true;
         auto count1 = reader.ReadInt16();
         auto count2 = reader.ReadInt16();
         auto count3 = reader.ReadInt16();
-        auto unk6 = reader.ReadInt16();
+        modelData->mUnk14Unk6 = reader.ReadInt16();
 
         for (int16_t i = 0; i < count1; i++) {
-            auto xScale1 = reader.ReadInt16();
-            auto yScale1 = reader.ReadInt16();
-            auto zScale1 = reader.ReadInt16();
-            auto xScale2 = reader.ReadInt16();
-            auto yScale2 = reader.ReadInt16();
-            auto zScale2 = reader.ReadInt16();
-            auto xPos = reader.ReadInt16();
-            auto yPos = reader.ReadInt16();
-            auto zPos = reader.ReadInt16();
-            auto xRot = reader.ReadUByte();
-            auto yRot = reader.ReadUByte();
-            auto zRot = reader.ReadUByte();
-            auto unk15 = reader.ReadUByte();
-            auto animIndex = reader.ReadUByte();
-            reader.ReadUByte(); // pad
+            Unk14_0 e{};
+            e.scale1[0] = reader.ReadInt16(); e.scale1[1] = reader.ReadInt16(); e.scale1[2] = reader.ReadInt16();
+            e.scale2[0] = reader.ReadInt16(); e.scale2[1] = reader.ReadInt16(); e.scale2[2] = reader.ReadInt16();
+            e.pos[0] = reader.ReadInt16(); e.pos[1] = reader.ReadInt16(); e.pos[2] = reader.ReadInt16();
+            e.rot[0] = reader.ReadUByte(); e.rot[1] = reader.ReadUByte(); e.rot[2] = reader.ReadUByte();
+            e.unk15 = reader.ReadUByte(); e.animIndex = reader.ReadUByte(); e.pad = reader.ReadUByte();
+            modelData->mUnk14Entries0.push_back(e);
         }
 
         for (int16_t i = 0; i < count2; i++) {
-            auto unk0 = reader.ReadInt16();
-            auto unk2 = reader.ReadInt16();
-            auto xPos = reader.ReadInt16();
-            auto yPos = reader.ReadInt16();
-            auto zPos = reader.ReadInt16();
-            auto xRot = reader.ReadUByte();
-            auto yRot = reader.ReadUByte();
-            auto zRot = reader.ReadUByte();
-            auto unkD = reader.ReadUByte();
-            auto animIndex = reader.ReadUByte();
-            reader.ReadUByte(); // pad
+            Unk14_1 e{};
+            e.unk0 = reader.ReadInt16(); e.unk2 = reader.ReadInt16();
+            e.pos[0] = reader.ReadInt16(); e.pos[1] = reader.ReadInt16(); e.pos[2] = reader.ReadInt16();
+            e.rot[0] = reader.ReadUByte(); e.rot[1] = reader.ReadUByte(); e.rot[2] = reader.ReadUByte();
+            e.unkD = reader.ReadUByte(); e.animIndex = reader.ReadUByte(); e.pad = reader.ReadUByte();
+            modelData->mUnk14Entries1.push_back(e);
         }
 
         for (int16_t i = 0; i < count3; i++) {
-            auto unk0 = reader.ReadInt16();
-            auto xUnk2 = reader.ReadInt16();
-            auto yUnk2 = reader.ReadInt16();
-            auto zUnk2 = reader.ReadInt16();
-            auto unk8 = reader.ReadUByte();
-            auto animIndex = reader.ReadUByte();
-            reader.ReadUByte(); // pad
+            Unk14_2 e{};
+            e.unk0 = reader.ReadInt16();
+            e.unk2[0] = reader.ReadInt16(); e.unk2[1] = reader.ReadInt16(); e.unk2[2] = reader.ReadInt16();
+            e.unk8 = reader.ReadUByte(); e.unk9 = reader.ReadUByte();
+            e.pad[0] = reader.ReadUByte();
+            modelData->mUnk14Entries2.push_back(e);
         }
     }
 
@@ -508,18 +686,16 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
     if (modelUnk20Offset != 0) {
         reader.Seek(modelOffset + modelUnk20Offset, LUS::SeekOffsetType::Start);
+        modelData->mHasUnk20 = true;
         auto count = reader.ReadInt8();
         reader.ReadInt8(); // pad
 
         for (int8_t i = 0; i < count; i++) {
-            auto xUnk0 = reader.ReadInt16();
-            auto yUnk0 = reader.ReadInt16();
-            auto zUnk0 = reader.ReadInt16();
-            auto xUnk6 = reader.ReadInt16();
-            auto yUnk6 = reader.ReadInt16();
-            auto zUnk6 = reader.ReadInt16();
-            auto unkC = reader.ReadUByte();
-            reader.ReadUByte(); // pad
+            Unk20_0 e{};
+            e.unk0[0] = reader.ReadInt16(); e.unk0[1] = reader.ReadInt16(); e.unk0[2] = reader.ReadInt16();
+            e.unk6[0] = reader.ReadInt16(); e.unk6[1] = reader.ReadInt16(); e.unk6[2] = reader.ReadInt16();
+            e.unkC = reader.ReadUByte(); e.pad = reader.ReadUByte();
+            modelData->mUnk20Entries.push_back(e);
         }
     }
 
@@ -540,19 +716,22 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
 
     if (modelUnk28Offset != 0) {
         SPDLOG_INFO("HAS UNK 28");
-        reader.Seek(modelOffset + modelUnk20Offset, LUS::SeekOffsetType::Start);
+        reader.Seek(modelOffset + modelUnk28Offset, LUS::SeekOffsetType::Start);
+        modelData->mHasUnk28 = true;
         auto count = reader.ReadInt16();
         reader.ReadInt16(); // pad
 
         for (int16_t i = 0; i < count; i++) {
-            auto xCoord = reader.ReadInt16();
-            auto yCoord = reader.ReadInt16();
-            auto zCoord = reader.ReadInt16();
-            auto animIndex = reader.ReadInt8();
+            Unk28_0 e{};
+            e.coord[0]   = reader.ReadInt16();
+            e.coord[1]   = reader.ReadInt16();
+            e.coord[2]   = reader.ReadInt16();
+            e.animIndex  = reader.ReadInt8();
             auto vtxCount = reader.ReadInt8();
             for (int16_t j = 0; j < vtxCount; j++) {
-                auto vtxIndex = reader.ReadInt16();
+                e.vtxList.push_back(reader.ReadInt16());
             }
+            modelData->mUnk28Entries.push_back(e);
         }
     }
 
