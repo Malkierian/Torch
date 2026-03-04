@@ -34,45 +34,138 @@ ExportResult BK64::GeoLayoutBinaryExporter::Export(std::ostream& write, std::sha
     auto writer = LUS::BinaryWriter();
     const auto geo = std::static_pointer_cast<GeoLayoutData>(raw);
 
+    // Re-encode each command back to the original N64 binary layout (host/little-endian).
+    // cmdLength values are preserved verbatim — they are byte offsets to the next sibling
+    // and remain valid because each command's re-encoded byte size matches the original binary.
     for(const auto& [opcode, cmdLength, arguments] : geo->mCmds) {
-
         writer.Write(static_cast<uint32_t>(opcode));
         writer.Write(cmdLength);
 
-        for(auto& args : arguments) {
-            switch(static_cast<GeoLayoutArgType>(args.index())) {
-                case GeoLayoutArgType::U8: {
-                    writer.Write((uint32_t)std::get<uint8_t>(args));
-                    break;
-                }
-                case GeoLayoutArgType::S8: {
-                    writer.Write(std::get<int8_t>(args));
-                    break;
-                }
-                case GeoLayoutArgType::U16: {
-                    writer.Write(std::get<uint16_t>(args));
-                    break;
-                }
-                case GeoLayoutArgType::S16: {
-                    writer.Write(std::get<int16_t>(args));
-                    break;
-                }
-                case GeoLayoutArgType::U32: {
-                    writer.Write(std::get<uint32_t>(args));
-                    break;
-                }
-                case GeoLayoutArgType::S32: {
-                    writer.Write(std::get<int32_t>(args));
-                    break;
-                }
-                case GeoLayoutArgType::FLOAT: {
-                    writer.Write(std::get<float>(args));
-                    break;
-                }
-                default: {
-                    break;
-                }
+        switch(opcode) {
+            case GeoLayoutOpCode::UnknownCmd0: {
+                // u16 childOffset, u16 shouldRotatePitch, f32 x, f32 y, f32 z
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                writer.Write(std::get<uint16_t>(arguments[1]));
+                writer.Write(std::get<float>(arguments[2]));
+                writer.Write(std::get<float>(arguments[3]));
+                writer.Write(std::get<float>(arguments[4]));
+                break;
             }
+            case GeoLayoutOpCode::Sort: {
+                // f32 x1,y1,z1,x2,y2,z2, u8 pad, u8 layoutOrder, u16 firstChild, u16 pad2, u16 secondChild
+                writer.Write(std::get<float>(arguments[0]));
+                writer.Write(std::get<float>(arguments[1]));
+                writer.Write(std::get<float>(arguments[2]));
+                writer.Write(std::get<float>(arguments[3]));
+                writer.Write(std::get<float>(arguments[4]));
+                writer.Write(std::get<float>(arguments[5]));
+                writer.Write(static_cast<uint8_t>(0));              // pad
+                writer.Write(std::get<uint8_t>(arguments[6]));      // layoutOrder
+                writer.Write(std::get<uint16_t>(arguments[7]));     // firstChildOffset
+                writer.Write(static_cast<uint16_t>(0));             // pad
+                writer.Write(std::get<uint16_t>(arguments[8]));     // secondChildOffset
+                break;
+            }
+            case GeoLayoutOpCode::Bone: {
+                // u8 childOffset, u8 boneId, u16 unkBoneInfo
+                writer.Write(std::get<uint8_t>(arguments[0]));
+                writer.Write(std::get<uint8_t>(arguments[1]));
+                writer.Write(std::get<uint16_t>(arguments[2]));
+                break;
+            }
+            case GeoLayoutOpCode::LoadDL: {
+                // u16 dlIndex, u16 triCount
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                writer.Write(std::get<uint16_t>(arguments[1]));
+                break;
+            }
+            case GeoLayoutOpCode::Skinning: {
+                // u16 dlOffsetPreviousBone, u16 dlOffset1..N, u16 0 (terminator not in args)
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                for (size_t i = 1; i < arguments.size(); i++) {
+                    writer.Write(std::get<uint16_t>(arguments[i]));
+                }
+                writer.Write(static_cast<uint16_t>(0));
+                break;
+            }
+            case GeoLayoutOpCode::Branch: {
+                // u32 cmdTargetOffset
+                writer.Write(std::get<uint32_t>(arguments[0]));
+                break;
+            }
+            case GeoLayoutOpCode::UnknownCmd7: {
+                // u16 pad, u16 dlIndex
+                writer.Write(static_cast<uint16_t>(0));
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                break;
+            }
+            case GeoLayoutOpCode::LOD: {
+                // f32 maxDistance, minDistance, x, y, z, u32 childOffset
+                writer.Write(std::get<float>(arguments[0]));
+                writer.Write(std::get<float>(arguments[1]));
+                writer.Write(std::get<float>(arguments[2]));
+                writer.Write(std::get<float>(arguments[3]));
+                writer.Write(std::get<float>(arguments[4]));
+                writer.Write(std::get<uint32_t>(arguments[5]));
+                break;
+            }
+            case GeoLayoutOpCode::ReferencePoint: {
+                // u16 referencePointIndex, u16 boneIndex, f32 boneOffsetX, Y, Z
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                writer.Write(std::get<uint16_t>(arguments[1]));
+                writer.Write(std::get<float>(arguments[2]));
+                writer.Write(std::get<float>(arguments[3]));
+                writer.Write(std::get<float>(arguments[4]));
+                break;
+            }
+            case GeoLayoutOpCode::Selector: {
+                // u16 childCount, u16 selectorIndex, u32 childOffset[childCount]
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                writer.Write(std::get<uint16_t>(arguments[1]));
+                for (size_t i = 2; i < arguments.size(); i++) {
+                    writer.Write(std::get<uint32_t>(arguments[i]));
+                }
+                break;
+            }
+            case GeoLayoutOpCode::DrawDistance: {
+                // s16 negX, negY, negZ, posX, posY, posZ, unk14, unk16
+                writer.Write(std::get<int16_t>(arguments[0]));
+                writer.Write(std::get<int16_t>(arguments[1]));
+                writer.Write(std::get<int16_t>(arguments[2]));
+                writer.Write(std::get<int16_t>(arguments[3]));
+                writer.Write(std::get<int16_t>(arguments[4]));
+                writer.Write(std::get<int16_t>(arguments[5]));
+                writer.Write(std::get<int16_t>(arguments[6]));
+                writer.Write(std::get<int16_t>(arguments[7]));
+                break;
+            }
+            case GeoLayoutOpCode::UnknownCmdE: {
+                // s16 coords1X, coords1Y, coords1Z, coords2X, coords2Y, coords2Z
+                writer.Write(std::get<int16_t>(arguments[0]));
+                writer.Write(std::get<int16_t>(arguments[1]));
+                writer.Write(std::get<int16_t>(arguments[2]));
+                writer.Write(std::get<int16_t>(arguments[3]));
+                writer.Write(std::get<int16_t>(arguments[4]));
+                writer.Write(std::get<int16_t>(arguments[5]));
+                break;
+            }
+            case GeoLayoutOpCode::UnknownCmdF: {
+                // u16 childOffset, u8 unkA, u8 unkB, u8 unkCBuf[12]
+                writer.Write(std::get<uint16_t>(arguments[0]));
+                writer.Write(std::get<uint8_t>(arguments[1]));
+                writer.Write(std::get<uint8_t>(arguments[2]));
+                for (size_t i = 3; i < arguments.size(); i++) {
+                    writer.Write(std::get<uint8_t>(arguments[i]));
+                }
+                break;
+            }
+            case GeoLayoutOpCode::UnknownCmd10: {
+                // s32 wrapMode
+                writer.Write(std::get<int32_t>(arguments[0]));
+                break;
+            }
+            default:
+                throw std::runtime_error("BK64::GeoLayoutBinaryExporter: Unknown OpCode Found " + std::to_string(static_cast<uint32_t>(opcode)));
         }
     }
 
