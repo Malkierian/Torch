@@ -187,9 +187,10 @@ class ModelData : public IParsedData {
 
     // ── Display lists ─────────────────────────────────────────────────────────
     bool     mHasDL = false;
-    uint32_t mDLCount      = 0;   // total GFX command words across all sub-lists
+    uint32_t mDLCount      = 0;   // total GFX commands in the display list section
     uint32_t mDLUnkInfo    = 0;   // checksum/unknown from GFX header
-    uint32_t mGfxSubListCount = 0; // number of _GFX_* sub-assets
+    uint32_t mGfxSubListCount = 0; // number of _GFX_* sub-assets (kept for compat)
+    std::vector<uint32_t> mRawDLWords; // raw N64 DL command words (w0,w1 pairs)
 
     // ── Texture list ──────────────────────────────────────────────────────────
     std::vector<TexInfo> mTexInfos;
