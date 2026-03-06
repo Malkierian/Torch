@@ -236,10 +236,10 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         writer.Write(model->mDLCount);
         writer.Write(model->mDLUnkInfo);
         writer.Write(model->mGfxSubListCount);
-        // Embed raw N64 DL command words so the port can reconstruct the
-        // display list with correct indices (no OTR marker/expansion shifts).
-        for (auto word : model->mRawDLWords) {
-            writer.Write(word);
+        // Embed raw N64 DL command words (w0,w1 pairs) so the runtime importer
+        // can widen them to native Gfx without loading separate _GFX_ sub-assets.
+        for (auto w : model->mRawDLWords) {
+            writer.Write(w);
         }
     }
 
@@ -565,15 +565,12 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         modelData->mDLCount   = dlCount;
         modelData->mDLUnkInfo = unkDLInfo;
 
-        // Store raw N64 DL command words for embedding in the binary resource.
-        // This preserves the exact N64 layout so geo command indices remain valid.
-        modelData->mRawDLWords.reserve(dlCount * 2);
-
         std::set<uint32_t> dlOffsets;
         uint32_t dlOffset = 0;
         if (dlCount > 0) {
             dlOffsets.emplace(dlOffset);
         }
+        modelData->mRawDLWords.reserve(dlCount * 2);
         while (dlOffset < dlCount * GFX_CMD_SIZE) {
             auto w0 = reader.ReadUInt32();
             auto w1 = reader.ReadUInt32();
@@ -581,7 +578,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             modelData->mRawDLWords.push_back(w1);
             dlOffset += GFX_CMD_SIZE;
             uint8_t opCode = w0 >> 24;
-
+            
             if (opCode == GBI(G_ENDDL) && dlOffset != dlCount * GFX_CMD_SIZE) {
                 dlOffsets.emplace(dlOffset);
             }
