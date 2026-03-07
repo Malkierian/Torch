@@ -46,8 +46,10 @@ enum class BKAssetType {
 class BKAssetData : public IParsedData {
 public:
     std::vector<BKAssetInfo> mAssetTableInfo;
+    std::unordered_map<uint32_t, std::string> mSymbolMap;
 
-    BKAssetData(std::vector<BKAssetInfo> assetTableInfo) : mAssetTableInfo(std::move(assetTableInfo)) {}
+    BKAssetData(std::vector<BKAssetInfo> assetTableInfo, std::unordered_map<uint32_t, std::string> symbolMap)
+        : mAssetTableInfo(std::move(assetTableInfo)), mSymbolMap(std::move(symbolMap)) {}
 };
 
 class BKAssetHeaderExporter : public BaseExporter {

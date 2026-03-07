@@ -69,17 +69,20 @@ ExportResult BKAssetBinaryExporter::Export(std::ostream &write, std::shared_ptr<
 
     WriteHeader(writer, Torch::ResourceType::Blob, 0);
 
-    // Write asset count
-    writer.Write(static_cast<uint32_t>(assetTable->mAssetTableInfo.size()));
-    
-    // Write padding/unknown (always 0)
-    writer.Write(static_cast<uint32_t>(0));
+    // Write asset ID → o2r path manifest.
+    // BlobFactory reads a u32 dataSize first, then dataSize raw bytes.
+    // Manifest payload: u32 count, then for each entry: u32 assetId, s32 pathLen, char path[pathLen]
+    size_t payloadSize = 4; // u32 count
+    for (const auto& [id, symbol] : assetTable->mSymbolMap) {
+        payloadSize += 4 + 4 + symbol.size(); // u32 id + s32 pathLen + path bytes
+    }
+    writer.Write(static_cast<uint32_t>(payloadSize));
 
-    // Write each asset table entry (8 bytes each)
-    for (const auto& assetInfo : assetTable->mAssetTableInfo) {
-        writer.Write(assetInfo.offset);           // uint32_t
-        writer.Write(assetInfo.compressionFlag);  // int16_t
-        writer.Write(assetInfo.tFlag);            // int16_t
+    // Manifest payload
+    writer.Write(static_cast<uint32_t>(assetTable->mSymbolMap.size()));
+    for (const auto& [id, symbol] : assetTable->mSymbolMap) {
+        writer.Write(id);
+        writer.Write(symbol);  // writes s32 length prefix + string bytes
     }
 
     writer.Finish(write);
@@ -105,7 +108,8 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
     int32_t assetMode = 0;
 
     std::vector<BKAssetInfo> assetTableInfo;
-    
+    std::unordered_map<uint32_t, std::string> symbolMap;
+
     for (uint32_t i = 0; i < assetCount; i++) {
         BKAssetInfo assetInfo;
         assetInfo.index = i;
@@ -222,6 +226,8 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
             assetSymbol = assetStream.str();
         }
 
+        symbolMap[assetInfo.index] = assetSymbol;
+
         YAML::Node bkAssetNode;
         bkAssetNode["offset"] = assetOffset;
         bkAssetNode["symbol"] = assetSymbol;
@@ -275,7 +281,7 @@ std::optional<std::shared_ptr<IParsedData>> BKAssetFactory::parse(std::vector<ui
         }
     }
 
-    return std::make_shared<BKAssetData>(assetTableInfo);
+    return std::make_shared<BKAssetData>(assetTableInfo, symbolMap);
 }
 
 } // namespace BK64
