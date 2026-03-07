@@ -232,26 +232,25 @@ ExportResult MapBinaryExporter::Export(std::ostream& write, std::shared_ptr<IPar
         // NodeProps inline
         writer.Write((uint32_t)cube.nodeProps.size());
         for (const auto& np : cube.nodeProps) {
-            writer.Write(np.position[0]);
-            writer.Write(np.position[1]);
-            writer.Write(np.position[2]);
-            uint16_t f1 = ((np.radius & 0x1FF) << 7) |
-                          ((np.bit6   & 0x3F)  << 1) |
-                          ((np.bit0   & 0x01)  << 0);
-            writer.Write(f1);
-            writer.Write(np.unk8);
-            writer.Write(np.unkA);
-            writer.Write(np.padB);
-            uint32_t f2 = ((np.yaw   & 0x1FF)     << 23) |
-                          ((np.scale & 0x7FFFFF)   <<  0);
-            writer.Write(f2);
-            uint32_t f3 = ((np.unk10_31 & 0xFFF) << 20) |
-                          ((np.unk10_19 & 0xFFF) <<  8) |
-                          ((np.pad10_7  & 0x01)  <<  7) |
-                          ((np.unk10_6  & 0x01)  <<  6) |
-                          ((np.pad10_5  & 0x0F)  <<  2) |
-                          ((np.unk10_0  & 0x03)  <<  0);
-            writer.Write(f3);
+            // [port] Write individual typed fields in native byte order
+            // (consistent with Ghostship/Starship/SpaghettiKart pattern)
+            writer.Write(np.position[0]);          // s16
+            writer.Write(np.position[1]);          // s16
+            writer.Write(np.position[2]);          // s16
+            writer.Write(static_cast<uint16_t>(np.radius));   // u16 (9-bit value)
+            writer.Write(static_cast<uint8_t>(np.bit6));      // u8  (6-bit value)
+            writer.Write(static_cast<uint8_t>(np.bit0));      // u8  (1-bit value)
+            writer.Write(np.unk8);                 // u16
+            writer.Write(np.unkA);                 // u8
+            writer.Write(np.padB);                 // u8
+            writer.Write(static_cast<uint16_t>(np.yaw));      // u16 (9-bit value)
+            writer.Write(np.scale);                // u32 (23-bit value)
+            writer.Write(static_cast<uint16_t>(np.unk10_31)); // u16 (12-bit value)
+            writer.Write(static_cast<uint16_t>(np.unk10_19)); // u16 (12-bit value)
+            writer.Write(static_cast<uint8_t>(np.pad10_7));   // u8  (1-bit value)
+            writer.Write(static_cast<uint8_t>(np.unk10_6));   // u8  (1-bit value)
+            writer.Write(static_cast<uint8_t>(np.pad10_5));   // u8  (4-bit value)
+            writer.Write(static_cast<uint8_t>(np.unk10_0));   // u8  (2-bit value)
         }
 
         // Props inline (raw 12-byte structs)
