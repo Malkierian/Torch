@@ -120,6 +120,11 @@ if(ENABLE_ASAN)
     add_link_options(-fsanitize=address)
 endif()
 
+# MSVC static runtime for all targets (must be set before add_subdirectory/FetchContent)
+if (MSVC)
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+endif()
+
 # Build
 if (USE_STANDALONE)
     add_definitions(-DSTANDALONE)
@@ -176,7 +181,6 @@ else()
         target_link_options(${PROJECT_NAME} PRIVATE /bigobj)
     endif()
     add_definitions(-DSTORMLIB_NO_AUTO_LINK)
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 endif()
 
 

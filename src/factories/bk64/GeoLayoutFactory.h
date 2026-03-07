@@ -32,8 +32,10 @@ class GeoLayoutCommand {
     GeoLayoutOpCode opCode;
     uint32_t cmdLength;
     std::vector<GeoLayoutArg> args;
+    uint32_t originalOffset; // Byte offset of this command in the original N64 binary layout
 
-    GeoLayoutCommand(GeoLayoutOpCode opCode, uint32_t cmdLength, std::vector<GeoLayoutArg> args) : opCode(opCode), cmdLength(cmdLength), args(std::move(args)) {}
+    GeoLayoutCommand(GeoLayoutOpCode opCode, uint32_t cmdLength, std::vector<GeoLayoutArg> args, uint32_t originalOffset = 0)
+        : opCode(opCode), cmdLength(cmdLength), args(std::move(args)), originalOffset(originalOffset) {}
 };
 
 class GeoLayoutData : public IParsedData {

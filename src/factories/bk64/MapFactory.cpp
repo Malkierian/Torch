@@ -405,7 +405,6 @@ ExportResult MapModdingExporter::Export(std::ostream& write, std::shared_ptr<IPa
             
             for (const auto& prop : cube.props) {
                 // Determine type from discriminator flags at offset 0xA (byte 10)
-                // is_actor = bit 0, is_3d = bit 1 of the flags byte
                 const uint8_t flags = prop.raw[10];
                 const char* typeName = GetPropTypeName(flags);
                 bool is_visible = (flags & PROP_FLAG_VISIBLE) != 0;
@@ -620,18 +619,11 @@ static void ReadCubeContent(LUS::BinaryReader& reader, CubeData& cube, const std
 
                 cube.nodeProps.push_back(nodeProp);
             } else {
-                // OtherNode (0x06 format): 12 bytes - DEAD CODE PATH
-                // Analysis shows this format is never used in any released ROM (US v1.0/v1.1, PAL, JP).
-                // The decomp has a buffer overflow bug in this code path (allocates 12 bytes, copies 20),
-                // and all runtime code assumes 20-byte NodeProp structure with position/category fields.
-                // This is likely:
-                //   - Unused beta/prototype code compiled in but never called
-                //   - Decompiler artifact from misinterpreted conditional branches
-                // This handler exists only as a safety net for corrupted/modified ROMs.
-                
-                uint32_t word0 = reader.ReadUInt32();  // pad0[4]
-                uint32_t word4 = reader.ReadUInt32();  // bitfields (mostly padding, some flags)
-                uint32_t word8 = reader.ReadUInt32();  // pad8[4]
+                // OtherNode (0x06 format): 12 bytes. Unused in all released ROMs;
+                // kept as a safety net for corrupted/modified ROMs.
+                uint32_t word0 = reader.ReadUInt32();
+                uint32_t word4 = reader.ReadUInt32();
+                uint32_t word8 = reader.ReadUInt32();
                 
                 // Convert to zero-initialized NodeProp to maintain structure
                 NodeProp nodeProp = {};  // Zero all fields
