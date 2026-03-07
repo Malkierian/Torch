@@ -132,6 +132,7 @@ typedef struct TexInfo {
     uint8_t  width;
     uint8_t  height;
     uint16_t tlutColors;
+    uint32_t textureDataOffset; // Original ROM offset relative to texture data base
 } TexInfo;
 
 /**

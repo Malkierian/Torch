@@ -249,6 +249,7 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         writer.Write(tex.width);
         writer.Write(tex.height);
         writer.Write(tex.tlutColors);
+        writer.Write(tex.textureDataOffset);
     }
 
     // ── Animation list ────────────────────────────────────────────────────────
@@ -484,6 +485,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             texInfo.width      = static_cast<uint8_t>(width);
             texInfo.height     = static_cast<uint8_t>(height);
             texInfo.tlutColors = tlutColors;
+            texInfo.textureDataOffset = textureDataOffset;
             modelData->mTexInfos.push_back(texInfo);
 
             uint32_t textureOffset = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE + textureDataOffset + tlutSize * sizeof(int16_t);
@@ -561,7 +563,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         Companion::Instance->SetCompressedSegment(3, fileOffset, modelOffset + displayListSetupOffset + GFX_HEADER_SIZE);
         modelData->mHasDL  = true;
         auto dlCount   = reader.ReadUInt32();
-        auto unkDLInfo = reader.ReadUInt32(); // checksum?
+        auto unkDLInfo = reader.ReadUInt32();
         modelData->mDLCount   = dlCount;
         modelData->mDLUnkInfo = unkDLInfo;
 

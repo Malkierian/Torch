@@ -36,7 +36,7 @@ static uint32_t GetGeoCommandByteSize(const GeoLayoutCommand& cmd) {
     uint32_t bodySize = 0;
     switch(cmd.opCode) {
         case GeoLayoutOpCode::UnknownCmd0: bodySize = 16; break;  // 2+2+4+4+4
-        case GeoLayoutOpCode::Sort:        bodySize = 32; break;  // 4*6+1+1+2+2+2
+        case GeoLayoutOpCode::Sort:        bodySize = 32; break;  // 4*6+2+2+4 (matches GeoCmd1)
         case GeoLayoutOpCode::Bone:        bodySize = 4;  break;  // 1+1+2
         case GeoLayoutOpCode::LoadDL:      bodySize = 4;  break;  // 2+2
         case GeoLayoutOpCode::Skinning:
@@ -104,11 +104,11 @@ ExportResult BK64::GeoLayoutBinaryExporter::Export(std::ostream& write, std::sha
                 writeF32(std::get<float>(arguments[3]));
                 writeF32(std::get<float>(arguments[4]));
                 writeF32(std::get<float>(arguments[5]));
-                writeU8(0); // pad
-                writeU8(std::get<uint8_t>(arguments[6]));
-                writeU16(std::get<uint16_t>(arguments[7]));
-                writeU16(0); // pad
-                writeU16(std::get<uint16_t>(arguments[8]));
+                // [port] Decomp reads unk20 as s16, unk22 as s16, unk24 as s32.
+                // Write to match GeoCmd1 struct layout, not the N64 BE byte layout.
+                writeS16(static_cast<int16_t>(std::get<uint8_t>(arguments[6]))); // unk20 (layoutOrder)
+                writeS16(static_cast<int16_t>(std::get<uint16_t>(arguments[7]))); // unk22 (firstChildOffset)
+                writeS32(static_cast<int32_t>(std::get<uint16_t>(arguments[8]))); // unk24 (secondChildOffset)
                 break;
             case GeoLayoutOpCode::Bone:
                 writeU8(std::get<uint8_t>(arguments[0]));
@@ -190,14 +190,13 @@ ExportResult BK64::GeoLayoutBinaryExporter::Export(std::ostream& write, std::sha
     WriteHeader(output, Torch::ResourceType::Blob, 0);
 
     output.Write(static_cast<uint32_t>(buffer.size()));
-    output.Write(reinterpret_cast<const char*>(buffer.data()), buffer.size());
+    output.Write(reinterpret_cast<char*>(buffer.data()), buffer.size());
     output.Finish(write);
     output.Close();
 
     return std::nullopt;
 }
 
-// TODO: calculate numChildren on parse?
 ExportResult GeoLayoutModdingExporter::Export(std::ostream& write, std::shared_ptr<IParsedData> raw, std::string& entryName, YAML::Node& node, std::string* replacement) {
     auto geo = std::static_pointer_cast<GeoLayoutData>(raw);
     const auto symbol = GetSafeNode(node, "symbol", entryName);
@@ -589,7 +588,7 @@ std::optional<std::shared_ptr<IParsedData>> GeoLayoutFactory::parse(std::vector<
                 auto posX = reader.ReadInt16();
                 auto posY = reader.ReadInt16();
                 auto posZ = reader.ReadInt16();
-                auto unk14 = reader.ReadInt16();
+                auto childOffset = reader.ReadInt16();
                 auto unk16 = reader.ReadInt16();
 
                 args.emplace_back(negX);
@@ -598,24 +597,32 @@ std::optional<std::shared_ptr<IParsedData>> GeoLayoutFactory::parse(std::vector<
                 args.emplace_back(posX);
                 args.emplace_back(posY);
                 args.emplace_back(posZ);
-                args.emplace_back(unk14);
+                args.emplace_back(childOffset);
                 args.emplace_back(unk16);
+                // [port] unk14 is a child offset used by the renderer to recurse into child geo commands
+                if (childOffset != 0) {
+                    offsetStack.push_back(localOffset + childOffset);
+                }
                 break;
             }
             case GeoLayoutOpCode::UnknownCmdE: {
                 auto coords1X = reader.ReadInt16();
                 auto coords1Y = reader.ReadInt16();
                 auto coords1Z = reader.ReadInt16();
-                auto coords2X = reader.ReadInt16();
-                auto coords2Y = reader.ReadInt16();
-                auto coords2Z = reader.ReadInt16();
+                auto unkE = reader.ReadInt16();
+                auto childOffset = reader.ReadInt16();
+                auto unk12 = reader.ReadInt16();
 
                 args.emplace_back(coords1X);
                 args.emplace_back(coords1Y);
                 args.emplace_back(coords1Z);
-                args.emplace_back(coords2X);
-                args.emplace_back(coords2Y);
-                args.emplace_back(coords2Z);
+                args.emplace_back(unkE);
+                args.emplace_back(childOffset);
+                args.emplace_back(unk12);
+                // [port] unk10 is a child offset used by the renderer to recurse into child geo commands
+                if (childOffset != 0) {
+                    offsetStack.push_back(localOffset + childOffset);
+                }
                 break;
             }
             case GeoLayoutOpCode::UnknownCmdF: {
