@@ -144,6 +144,10 @@ ExportResult SpriteBinaryExporter::Export(std::ostream &write, std::shared_ptr<I
     auto wrapper = Companion::Instance->GetCurrentWrapper();
 
     writer.Write(sprites->mFormatCode);
+    writer.Write(sprites->mUnk4);
+    writer.Write(sprites->mUnk6);
+    writer.Write(sprites->mUnk8);
+    writer.Write(sprites->mUnkA);
     writer.Write((uint32_t)sprites->mPositions.size());
     for (auto position : sprites->mPositions) {
         writer.Write(position.first);
@@ -238,6 +242,11 @@ std::optional<std::shared_ptr<IParsedData>> SpriteFactory::parse(std::vector<uin
     
     int16_t frameCount = reader.ReadInt16();
     int16_t formatCode = reader.ReadInt16();
+    int16_t unk4 = reader.ReadInt16();
+    int16_t unk6 = reader.ReadInt16();
+    int16_t unk8 = reader.ReadInt16(); // Display width (billboard vertex positioning)
+    int16_t unkA = reader.ReadInt16(); // Display height (billboard vertex positioning)
+    // Skip unkC (4 bytes bitfield) — already at offset 0x10 after reading 6 x int16
     std::string format;
 
     switch (formatCode) {
@@ -330,7 +339,7 @@ std::optional<std::shared_ptr<IParsedData>> SpriteFactory::parse(std::vector<uin
         frame++;
     }
 
-    return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions, frameHeaders);
+    return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions, frameHeaders, unk4, unk6, unk8, unkA);
 }
 
 } // namespace BK64

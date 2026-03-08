@@ -32,14 +32,21 @@ class SpriteData : public IParsedData {
 public:
     int16_t mFrameCount; // Number of animation frames
     int16_t mFormatCode; // Texture format (RGBA16=0, RGBA32=1, CI4=2, CI8=3, etc.)
+    int16_t mUnk4;       // ROM header field at offset 4
+    int16_t mUnk6;       // ROM header field at offset 6
+    int16_t mUnk8;       // Display width (used for billboard vertex positioning)
+    int16_t mUnkA;       // Display height (used for billboard vertex positioning)
     std::vector<uint16_t> mChunkCounts; // Chunks per frame (length = mFrameCount)
     std::vector<std::pair<int16_t, int16_t>> mPositions; // (x, y) offset per chunk
     std::vector<SpriteFrameHeader> mFrameHeaders; // Per-frame header data
 
     SpriteData(int16_t frameCount, int16_t formatCode, std::vector<uint16_t> chunkCounts,
                std::vector<std::pair<int16_t, int16_t>> positions,
-               std::vector<SpriteFrameHeader> frameHeaders = {})
-        : mFrameCount(frameCount), mFormatCode(formatCode), mChunkCounts(std::move(chunkCounts)),
+               std::vector<SpriteFrameHeader> frameHeaders = {},
+               int16_t unk4 = 0, int16_t unk6 = 0, int16_t unk8 = 0, int16_t unkA = 0)
+        : mFrameCount(frameCount), mFormatCode(formatCode),
+          mUnk4(unk4), mUnk6(unk6), mUnk8(unk8), mUnkA(unkA),
+          mChunkCounts(std::move(chunkCounts)),
           mPositions(std::move(positions)), mFrameHeaders(std::move(frameHeaders)) {}
 };
 

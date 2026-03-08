@@ -195,6 +195,8 @@ class ModelData : public IParsedData {
 
     // ── Texture list ──────────────────────────────────────────────────────────
     std::vector<TexInfo> mTexInfos;
+    uint32_t mTexDataSize = 0;              // size of raw texture data area (from BKTextureList header)
+    std::vector<uint8_t> mRawTexData;       // full raw texture data area (TLUT + pixel data, contiguous)
 
     // ── Animation data ────────────────────────────────────────────────────────
     bool mHasAnimation = false;
