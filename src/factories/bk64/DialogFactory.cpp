@@ -80,14 +80,14 @@ ExportResult BK64::DialogBinaryExporter::Export(std::ostream& write, std::shared
     for (const auto& dialogString : dialog->mBottom) {
         writer.Write(dialogString.cmd);
         writer.Write((uint32_t)dialogString.str.length());
-        writer.Write(dialogString.str);
+        writer.Write((char*)dialogString.str.data(), dialogString.str.size()); // [port] was Write(string) which double-prefixes length
     }
 
     writer.Write((uint32_t)dialog->mTop.size());
     for (const auto& dialogString : dialog->mTop) {
         writer.Write(dialogString.cmd);
         writer.Write((uint32_t)dialogString.str.length());
-        writer.Write(dialogString.str);
+        writer.Write((char*)dialogString.str.data(), dialogString.str.size()); // [port] was Write(string) which double-prefixes length
     }
     
     writer.Finish(write);

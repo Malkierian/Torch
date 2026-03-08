@@ -83,7 +83,7 @@ ExportResult BK64::GruntyQuestionBinaryExporter::Export(std::ostream& write, std
     for (const auto& dialogString : gruntyQuestion->mText) {
         writer.Write(dialogString.cmd);
         writer.Write((uint32_t)dialogString.str.length());
-        writer.Write(dialogString.str);
+        writer.Write((char*)dialogString.str.data(), dialogString.str.size()); // [port] was Write(string) which double-prefixes length
     }
 
     writer.Write((uint32_t)gruntyQuestion->mOptions.size());
@@ -92,7 +92,7 @@ ExportResult BK64::GruntyQuestionBinaryExporter::Export(std::ostream& write, std
         writer.Write(optionString.unk0);
         writer.Write(optionString.unk1);
         writer.Write((uint32_t)optionString.str.length());
-        writer.Write(optionString.str);
+        writer.Write((char*)optionString.str.data(), optionString.str.size()); // [port] was Write(string) which double-prefixes length
     }
 
     writer.Finish(write);
