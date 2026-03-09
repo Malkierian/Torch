@@ -252,6 +252,14 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         writer.Write(tex.textureDataOffset);
     }
 
+    // ── Raw texture data blob ────────────────────────────────────────────────
+    // [port] Full contiguous texture data area from the decompressed model.
+    // This preserves data between listed textures that DL commands may reference.
+    writer.Write(model->mTexDataSize);
+    if (model->mTexDataSize > 0 && !model->mRawTexData.empty()) {
+        writer.Write((char*)model->mRawTexData.data(), model->mRawTexData.size());
+    }
+
     // ── Animation list ────────────────────────────────────────────────────────
     if (model->mHasAnimation) {
         writer.Write(model->mAnimHeader.scalingFactor);
@@ -495,6 +503,18 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             texture["offset"] = textureOffset;
             texture["symbol"] = symbol + "_TEX_" + std::to_string(i);
             Companion::Instance->AddAsset(texture);
+        }
+
+        // [port] Capture the full raw texture data area so the port importer can
+        // reconstruct segment 2 without gaps. DL commands may reference offsets
+        // between listed textures (e.g. RGBA16 data followed by unlisted padding
+        // or shared texture regions) which would otherwise be zeroed out.
+        uint32_t texDataStart = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE;
+        if (textureDataSize > 0 && texDataStart + textureDataSize <= segment.size) {
+            modelData->mTexDataSize = textureDataSize;
+            modelData->mRawTexData.assign(
+                segment.data + texDataStart,
+                segment.data + texDataStart + textureDataSize);
         }
     }
 

@@ -144,6 +144,15 @@ ExportResult SpriteBinaryExporter::Export(std::ostream &write, std::shared_ptr<I
     auto wrapper = Companion::Instance->GetCurrentWrapper();
 
     writer.Write(sprites->mFormatCode);
+    writer.Write(sprites->mUnk4);
+    writer.Write(sprites->mUnk6);
+    writer.Write(sprites->mUnk8);
+    writer.Write(sprites->mUnkA);
+    // Animation parameters from ROM unkC bitfield
+    writer.Write(sprites->mAnimSpeed);
+    writer.Write(sprites->mAnimType);
+    writer.Write(sprites->mAnimDirection);
+    writer.Write(sprites->mAnimFlip);
     writer.Write((uint32_t)sprites->mPositions.size());
     for (auto position : sprites->mPositions) {
         writer.Write(position.first);
@@ -238,6 +247,16 @@ std::optional<std::shared_ptr<IParsedData>> SpriteFactory::parse(std::vector<uin
     
     int16_t frameCount = reader.ReadInt16();
     int16_t formatCode = reader.ReadInt16();
+    int16_t unk4 = reader.ReadInt16();
+    int16_t unk6 = reader.ReadInt16();
+    int16_t unk8 = reader.ReadInt16(); // Display width (billboard vertex positioning)
+    int16_t unkA = reader.ReadInt16(); // Display height (billboard vertex positioning)
+    // Read unkC animation bitfield (BE u32 at offset 0x0C)
+    uint32_t unkC_raw = reader.ReadUInt32();
+    uint8_t animSpeed     = (unkC_raw >> 28) & 0xF;  // bits 31-28
+    uint8_t animType      = (unkC_raw >> 25) & 0x7;  // bits 27-25
+    uint8_t animDirection = (unkC_raw >> 23) & 0x3;  // bits 24-23
+    uint8_t animFlip      = (unkC_raw >> 21) & 0x3;  // bits 22-21
     std::string format;
 
     switch (formatCode) {
@@ -278,7 +297,9 @@ std::optional<std::shared_ptr<IParsedData>> SpriteFactory::parse(std::vector<uin
         offset = spriteOffset + 8;
         std::string texSymbol = symbol + "_0_";
         ExtractChunk(reader, positions, offset, "RGBA16", texSymbol, 0);
-        return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions);
+        return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions,
+                                               std::vector<SpriteFrameHeader>{}, unk4, unk6, unk8, unkA,
+                                               animSpeed, animType, animDirection, animFlip);
     }
 
     reader.Seek(0x10, LUS::SeekOffsetType::Start);
@@ -330,7 +351,8 @@ std::optional<std::shared_ptr<IParsedData>> SpriteFactory::parse(std::vector<uin
         frame++;
     }
 
-    return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions, frameHeaders);
+    return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions, frameHeaders, unk4, unk6, unk8, unkA,
+                                        animSpeed, animType, animDirection, animFlip);
 }
 
 } // namespace BK64

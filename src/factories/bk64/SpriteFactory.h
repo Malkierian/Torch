@@ -32,14 +32,28 @@ class SpriteData : public IParsedData {
 public:
     int16_t mFrameCount; // Number of animation frames
     int16_t mFormatCode; // Texture format (RGBA16=0, RGBA32=1, CI4=2, CI8=3, etc.)
+    int16_t mUnk4;       // ROM header field at offset 4
+    int16_t mUnk6;       // ROM header field at offset 6
+    int16_t mUnk8;       // Display width (used for billboard vertex positioning)
+    int16_t mUnkA;       // Display height (used for billboard vertex positioning)
+    // unkC bitfield: animation parameters (BE u32 at ROM offset 0x0C)
+    uint8_t mAnimSpeed;     // bits 31-28: 4 bits — animation speed divisor
+    uint8_t mAnimType;      // bits 27-25: 3 bits — animation type (0=none, 1-4=various loop modes)
+    uint8_t mAnimDirection; // bits 24-23: 2 bits — animation direction control
+    uint8_t mAnimFlip;      // bits 22-21: 2 bits — flip/mirror control
     std::vector<uint16_t> mChunkCounts; // Chunks per frame (length = mFrameCount)
     std::vector<std::pair<int16_t, int16_t>> mPositions; // (x, y) offset per chunk
     std::vector<SpriteFrameHeader> mFrameHeaders; // Per-frame header data
 
     SpriteData(int16_t frameCount, int16_t formatCode, std::vector<uint16_t> chunkCounts,
                std::vector<std::pair<int16_t, int16_t>> positions,
-               std::vector<SpriteFrameHeader> frameHeaders = {})
-        : mFrameCount(frameCount), mFormatCode(formatCode), mChunkCounts(std::move(chunkCounts)),
+               std::vector<SpriteFrameHeader> frameHeaders = {},
+               int16_t unk4 = 0, int16_t unk6 = 0, int16_t unk8 = 0, int16_t unkA = 0,
+               uint8_t animSpeed = 0, uint8_t animType = 0, uint8_t animDirection = 0, uint8_t animFlip = 0)
+        : mFrameCount(frameCount), mFormatCode(formatCode),
+          mUnk4(unk4), mUnk6(unk6), mUnk8(unk8), mUnkA(unkA),
+          mAnimSpeed(animSpeed), mAnimType(animType), mAnimDirection(animDirection), mAnimFlip(animFlip),
+          mChunkCounts(std::move(chunkCounts)),
           mPositions(std::move(positions)), mFrameHeaders(std::move(frameHeaders)) {}
 };
 

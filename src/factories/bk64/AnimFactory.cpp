@@ -58,9 +58,9 @@ ExportResult BK64::AnimBinaryExporter::Export(std::ostream& write, std::shared_p
         writer.Write(file.mTransformType);
         writer.Write((uint32_t)file.mData.size());
         for (const auto& fileData : file.mData) {
-            writer.Write(fileData.unk0_15);
-            writer.Write(fileData.unk0_14);
-            writer.Write(fileData.unk0_13);
+            writer.Write(static_cast<uint8_t>(fileData.unk0_15));
+            writer.Write(static_cast<uint8_t>(fileData.unk0_14));
+            writer.Write(static_cast<uint16_t>(fileData.unk0_13));
             writer.Write(fileData.unk2);
         }
     }
