@@ -352,7 +352,7 @@ std::optional<std::shared_ptr<IParsedData>> SpriteFactory::parse(std::vector<uin
     }
 
     return std::make_shared<SpriteData>(frameCount, formatCode, chunkCounts, positions, frameHeaders, unk4, unk6, unk8, unkA,
-                                           animSpeed, animType, animDirection, animFlip);
+                                        animSpeed, animType, animDirection, animFlip);
 }
 
 } // namespace BK64
