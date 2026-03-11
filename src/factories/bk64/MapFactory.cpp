@@ -561,7 +561,7 @@ std::optional<std::shared_ptr<IParsedData>> MapFactory::parse(
 // Helper: Read the inner content of a cube from file (code7AF80_initCubeFromFile equivalent).
 // Called when the outer per-cube wrapper (below) encounters marker 0x03.
 static void ReadCubeContent(LUS::BinaryReader& reader, CubeData& cube, const std::string& symbol) {
-    // Format from decompilation (code7AF80_initCubeFromFile in code_A5BC0.c):
+    // Format from decompilation (code7AF80_initCubeFromFile in actor_cubepropsystem.c):
     //   Optional NodeProps (new):  0x0A + count (u8) + 0x0B + NodeProp data (20 bytes each)
     //   Optional NodeProps (old):  0x06 + count (u8) + 0x07 + OtherNode data (12 bytes each)
     //   Optional Props:            0x08 + count (u8) + 0x09 + Prop data (12 bytes each)
