@@ -314,7 +314,7 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         for (const auto& e : model->mUnk14Entries2) {
             writer.Write(e.unk0);
             writer.Write(e.unk2[0]); writer.Write(e.unk2[1]); writer.Write(e.unk2[2]);
-            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]);
+            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]); writer.Write(e.pad[1]);
         }
     }
 
@@ -435,53 +435,18 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             uint32_t tlutSize = 0;
             uint16_t tlutColors = 0;
 
-            YAML::Node texture;
             switch (textureType) {
-                case 0x1: {
-                    uint32_t tlutOffset = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE + textureDataOffset;
-                    YAML::Node tlut;
-                    tlut["type"] = "TEXTURE";
-                    tlut["format"] = "TLUT";
-                    tlut["ctype"] = "u16";
-                    tlut["colors"] = 0x10;
-                    tlut["offset"] = tlutOffset;
-                    tlut["symbol"] = symbol + "_TLUT_" + std::to_string(i);
-                    Companion::Instance->AddAsset(tlut);
-                    texture["format"] = "CI4";
-                    texture["ctype"] = "u8";
-                    texture["tlut"] = tlutOffset;
+                case 0x1:
                     tlutSize = 0x10;
                     tlutColors = 0x10;
                     break;
-                }
-                case 0x2: {
-                    uint32_t tlutOffset = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE + textureDataOffset;
-                    YAML::Node tlut;
-                    tlut["type"] = "TEXTURE";
-                    tlut["format"] = "TLUT";
-                    tlut["ctype"] = "u16";
-                    tlut["colors"] = 0x100;
-                    tlut["offset"] = tlutOffset;
-                    tlut["symbol"] = symbol + "_TLUT_" + std::to_string(i);
-                    Companion::Instance->AddAsset(tlut);
-                    texture["format"] = "CI8";
-                    texture["ctype"] = "u8";
-                    texture["tlut"] = tlutOffset;
+                case 0x2:
                     tlutSize = 0x100;
                     tlutColors = 0x100;
                     break;
-                }
                 case 0x4:
-                    texture["format"] = "RGBA16";
-                    texture["ctype"] = "u16";
-                    break;
                 case 0x8:
-                    texture["format"] = "RGBA32";
-                    texture["ctype"] = "u32";
-                    break;
                 case 0x10:
-                    texture["format"] = "IA8";
-                    texture["ctype"] = "u8";
                     break;
                 default:
                     throw std::runtime_error("BK64::ModelFactory: Invalid Texture Format Found " + std::to_string(textureType));
@@ -495,14 +460,6 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             texInfo.tlutColors = tlutColors;
             texInfo.textureDataOffset = textureDataOffset;
             modelData->mTexInfos.push_back(texInfo);
-
-            uint32_t textureOffset = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE + textureDataOffset + tlutSize * sizeof(int16_t);
-            texture["type"] = "TEXTURE";
-            texture["width"] = width;
-            texture["height"] = height;
-            texture["offset"] = textureOffset;
-            texture["symbol"] = symbol + "_TEX_" + std::to_string(i);
-            Companion::Instance->AddAsset(texture);
         }
 
         // [port] Capture the full raw texture data area so the port importer can
@@ -656,7 +613,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             e.unk0 = reader.ReadInt16();
             e.unk2[0] = reader.ReadInt16(); e.unk2[1] = reader.ReadInt16(); e.unk2[2] = reader.ReadInt16();
             e.unk8 = reader.ReadUByte(); e.unk9 = reader.ReadUByte();
-            e.pad[0] = reader.ReadUByte();
+            e.pad[0] = reader.ReadUByte(); e.pad[1] = reader.ReadUByte();
             modelData->mUnk14Entries2.push_back(e);
         }
     }

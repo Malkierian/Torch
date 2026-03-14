@@ -11,7 +11,7 @@ namespace BK64 {
  * 
  * Runtime Purpose:
  * - Defines spatial triggers and spawn locations for actors, warps, and events
- * - Processed during level load (func_8033F5A0_loadLevel) to create ActorMarkers
+ * - Processed during level load (cubeList_fromFile in actor_cubebounds.c) to create ActorMarkers
  * - category field determines behavior:
  *   * 6 = Actor spawn point (creates dynamic entity via markerActorTypeArray dispatch)
  *   * 7 = Warp destination (teleports player to different map)
@@ -19,7 +19,7 @@ namespace BK64 {
  *   * 0xA = Special event marker (used by level-specific systems)
  * 
  * Data Flow:
- *   ROM → MapFactory parse() → NodeProp array → func_8033F5A0_loadLevel →
+ *   ROM → MapFactory parse() → NodeProp array → cubeList_fromFile →
  *   ActorMarker creation → Actor spawning/event triggering via overlay callbacks
  * 
  * Structure Layout:
