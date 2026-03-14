@@ -314,7 +314,7 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         for (const auto& e : model->mUnk14Entries2) {
             writer.Write(e.unk0);
             writer.Write(e.unk2[0]); writer.Write(e.unk2[1]); writer.Write(e.unk2[2]);
-            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]);
+            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]); writer.Write(e.pad[1]);
         }
     }
 
@@ -613,7 +613,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             e.unk0 = reader.ReadInt16();
             e.unk2[0] = reader.ReadInt16(); e.unk2[1] = reader.ReadInt16(); e.unk2[2] = reader.ReadInt16();
             e.unk8 = reader.ReadUByte(); e.unk9 = reader.ReadUByte();
-            e.pad[0] = reader.ReadUByte();
+            e.pad[0] = reader.ReadUByte(); e.pad[1] = reader.ReadUByte();
             modelData->mUnk14Entries2.push_back(e);
         }
     }
