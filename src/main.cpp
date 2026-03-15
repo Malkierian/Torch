@@ -6,7 +6,6 @@ Companion* Companion::Instance;
 
 #if defined(STANDALONE) && !defined(__EMSCRIPTEN__)
 
-
 int main(int argc, char *argv[]) {
     CLI::App app{"Torch - [T]orch is [O]ur [R]esource [C]onversion [H]elper\n\
         * It extracts from a baserom and generates code or an otr.\n\
@@ -17,12 +16,14 @@ int main(int argc, char *argv[]) {
     std::string target;
     std::string folder;
     std::string archive;
+    std::string version;
     ArchiveType otrMode = ArchiveType::None;
     bool otrModeSelected = false;
     bool xmlMode = false;
     bool debug = false;
     std::string srcdir;
     std::string destdir;
+    std::vector<std::string> additionalFiles;
 
     app.require_subcommand();
 
@@ -46,9 +47,13 @@ int main(int argc, char *argv[]) {
     o2r->add_flag("-v,--verbose", debug, "Verbose Debug Mode");
     o2r->add_option("-s,--srcdir", srcdir, "Set source directory to locate config.yml and asset metadata for processing")->check(CLI::ExistingDirectory);
     o2r->add_option("-d,--destdir", destdir, "Set destination directory for export");
+    o2r->add_option("-a,--additional-files", additionalFiles, "Additional files to include in the o2r archive (e.g., mods.toml)")->check(CLI::ExistingFile);
+    o2r->add_option("-u,--version", version, "Version to set in the o2r archive");
 
     o2r->parse_complete_callback([&] {
         const auto instance = Companion::Instance = new Companion(filename, ArchiveType::O2R, debug, srcdir, destdir);
+        instance->SetAdditionalFiles(additionalFiles);
+        instance->SetVersion(version);
         instance->Init(ExportType::Binary);
     });
 
@@ -102,8 +107,8 @@ int main(int argc, char *argv[]) {
     pack->add_option("<folder>", folder, "Generate OTR from a directory of assets")->required()->check(CLI::ExistingDirectory);
     pack->add_option("<target>", target, "Archive output destination")->required();
     pack->add_option("<archive-type>", archive, "Archive type: otr or o2r")->required();
+    pack->add_option("-u,--version", version, "Version to set in the o2r archive");
 
-    
     pack->parse_complete_callback([&] {
         if (archive == "otr") {
             otrMode = ArchiveType::OTR;
@@ -114,7 +119,7 @@ int main(int argc, char *argv[]) {
         }
 
         if (!folder.empty()) {
-            Companion::Pack(folder, target, otrMode);
+            Companion::Pack(folder, target, otrMode, version);
         } else {
             std::cout << "The folder is empty" << std::endl;
         }

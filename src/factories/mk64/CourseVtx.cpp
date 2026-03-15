@@ -2,6 +2,7 @@
 
 #include "Companion.h"
 #include "utils/Decompressor.h"
+#include <cstdint>
 
 #define NUM(x) std::dec << std::setfill(' ') << std::setw(6) << x
 #define COL(c) "0x" << std::hex << std::setw(2) << std::setfill('0') << c
@@ -77,13 +78,16 @@ ExportResult MK64::CourseVtxBinaryExporter::Export(std::ostream &write, std::sha
 std::optional<std::shared_ptr<IParsedData>> MK64::CourseVtxFactory::parse(std::vector<uint8_t>& buffer, YAML::Node& node) {
     auto count = GetSafeNode<size_t>(node, "count");
 
-    auto [_, segment] = Decompressor::AutoDecode(node, buffer);
-    LUS::BinaryReader reader(segment.data, count * sizeof(CourseVtx));
+    auto [_, segment] = Decompressor::AutoDecode(node, buffer, count * sizeof(CourseVtx));
+    LUS::BinaryReader reader(segment.data, segment.size);
+
+    // Limit count to actual available vertices in the decompressed data
+    auto actualCount = std::min(count, segment.size / sizeof(CourseVtx));
 
     reader.SetEndianness(Torch::Endianness::Big);
-    std::vector<CourseVtx> vertices;
+    std::vector<VtxRaw> vertices;
 
-    for(size_t i = 0; i < count; i++) {
+    for(size_t i = 0; i < actualCount; i++) {
         auto x = reader.ReadInt16();
         auto y = reader.ReadInt16();
         auto z = reader.ReadInt16();
@@ -94,10 +98,13 @@ std::optional<std::shared_ptr<IParsedData>> MK64::CourseVtxFactory::parse(std::v
         auto cn3 = reader.ReadUByte();
         auto cn4 = reader.ReadUByte();
 
-        vertices.push_back(CourseVtx({
-           {x, y, z}, {tc1, tc2}, {cn1, cn2, cn3, cn4}
+        uint16_t flags = cn1 & 3;
+        flags |= (cn2 << 2) & 0xC;
+
+        vertices.push_back(VtxRaw({
+           {x, y, z},  flags, {tc1, tc2}, {(uint8_t)(cn1 & 0xfc), (uint8_t)(cn2 & 0xfc), cn3, 0xff}
        }));
     }
 
-    return std::make_shared<CourseVtxData>(vertices);
+    return std::make_shared<VtxData>(vertices);
 }

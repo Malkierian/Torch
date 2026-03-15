@@ -2,6 +2,7 @@
 
 #include "Companion.h"
 #include "utils/Decompressor.h"
+#include <spdlog/spdlog.h>
 
 #define NUM(x) std::dec << std::setfill(' ') << std::setw(6) << x
 #define COL(c) "0x" << std::hex << std::setw(2) << std::setfill('0') << c
@@ -32,7 +33,7 @@ ExportResult MK64::TrackSectionsCodeExporter::Export(std::ostream &write, std::s
     for (int i = 0; i < sections.size(); i++) {
         auto entry = sections[i];
 
-        auto addr = entry.addr;
+        auto crc = entry.crc;
         auto surf = entry.surfaceType;
         auto sect = entry.sectionId;
         auto flags = entry.flags;
@@ -42,7 +43,7 @@ ExportResult MK64::TrackSectionsCodeExporter::Export(std::ostream &write, std::s
         }
 
         // { addr, surface, section, flags },
-        write << "{" << NUM(addr) << ", " << NUM(surf) << ", " << NUM(sect) << ", " << NUM(flags) << "},\n";
+        write << "{" << NUM(crc) << ", " << NUM(surf) << ", " << NUM(sect) << ", " << NUM(flags) << "},\n";
     }
     write << "};\n";
 
@@ -56,7 +57,14 @@ ExportResult MK64::TrackSectionsBinaryExporter::Export(std::ostream &write, std:
     WriteHeader(writer, Torch::ResourceType::TrackSection, 0);
     writer.Write((uint32_t) sections->mSecs.size());
     for(auto entry : sections->mSecs) {
-        writer.Write(entry.addr);
+        auto dec = Companion::Instance->GetSafeStringByAddr(entry.crc, "GFX");
+        if(!dec.has_value()){
+            SPDLOG_WARN("Could not find gfx at 0x{:X}", entry.crc);
+            writer.Write(entry.crc);
+        } else {
+            uint64_t hash = CRC64(dec.value().c_str());
+            writer.Write(hash);
+        }
         writer.Write(entry.surfaceType);
         writer.Write(entry.sectionId);
         writer.Write(entry.flags);
@@ -69,8 +77,11 @@ ExportResult MK64::TrackSectionsBinaryExporter::Export(std::ostream &write, std:
 std::optional<std::shared_ptr<IParsedData>> MK64::TrackSectionsFactory::parse(std::vector<uint8_t>& buffer, YAML::Node& node) {
     auto count = GetSafeNode<size_t>(node, "count");
 
+    // On-disk format: uint32_t addr + int8_t surf + int8_t sect + uint16_t flags = 8 bytes
+    // Note: sizeof(MK64::TrackSections) is 16 bytes due to uint64_t crc + padding
+    constexpr size_t kOnDiskTrackSectionSize = sizeof(uint32_t) + sizeof(int8_t) + sizeof(int8_t) + sizeof(uint16_t);
     auto [_, segment] = Decompressor::AutoDecode(node, buffer);
-    LUS::BinaryReader reader(segment.data, count * sizeof(MK64::TrackSections));
+    LUS::BinaryReader reader(segment.data, count * kOnDiskTrackSectionSize);
 
     reader.SetEndianness(Torch::Endianness::Big);
     std::vector<MK64::TrackSections> sections;

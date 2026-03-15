@@ -1,4 +1,5 @@
 #include "Decompressor.h"
+#include "TorchUtils.h"
 
 #include <stdexcept>
 #include "spdlog/spdlog.h"
@@ -17,7 +18,7 @@ std::unordered_map<uint32_t, DataChunk*> gCachedChunks;
 
 DataChunk* Decompressor::Decode(const std::vector<uint8_t>& buffer, const uint32_t offset, const CompressionType type, const uint32_t in_size, bool ignoreCache) {
 
-    if(!ignoreCache && gCachedChunks.contains(offset)){
+    if(!ignoreCache && Torch::contains(gCachedChunks, offset)){
         return gCachedChunks[offset];
     }
 
@@ -74,7 +75,7 @@ DataChunk* Decompressor::Decode(const std::vector<uint8_t>& buffer, const uint32
 }
 
 DataChunk* Decompressor::DecodeTKMK00(const std::vector<uint8_t>& buffer, const uint32_t offset, const uint32_t size, const uint32_t alpha) {
-    if(gCachedChunks.contains(offset)){
+    if(Torch::contains(gCachedChunks, offset)){
         return gCachedChunks[offset];
     }
 
@@ -97,10 +98,26 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
 
     // Check if an asset in a yaml file is mio0 compressed and extract.
     if (node["mio0"]) {
+        auto assetPtr = ASSET_PTR(offset);
         auto gameSize = Companion::Instance->GetRomData().size();
 
         auto decoded = Decode(buffer, fileOffset + offsetFromFile, CompressionType::MIO0);
-        auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size);
+        size_t decodedSize = decoded->size - offset;
+        size_t size;
+
+        if (node["size"]) {
+            size = node["size"].as<size_t>();
+        } else if (manualSize.has_value()) {
+            size = manualSize.value();
+        } else {
+            size = decodedSize;
+        }
+
+        if(size > decodedSize) {
+            SPDLOG_WARN("Requested size 0x{:X} exceeds decoded MIO0 asset size 0x{:X} at offset 0x{:X}. Reducing to available size.", size, decodedSize, assetPtr);
+            size = decodedSize;
+        }
+
         return {
             .root = decoded,
             .segment = { decoded->data, size }
@@ -114,14 +131,31 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
         const auto height = GetSafeNode<uint32_t>(node, "height");
         const auto textureSize = width * height * 2;
 
-        auto decoded = DecodeTKMK00(buffer, fileOffset + offsetFromFile, textureSize, alpha);
-        auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size);
+        auto fileOffset = TranslateAddr(offset, true);
+        offset = ASSET_PTR(offset);
+
+        auto assetPtr = fileOffset + offset;
+        auto decoded = DecodeTKMK00(buffer, assetPtr, textureSize, alpha);
+        size_t decodedSize = decoded->size - offset;
+        size_t size;
+
+        if (node["size"]) {
+            size = node["size"].as<size_t>();
+        } else if (manualSize.has_value()) {
+            size = manualSize.value();
+        } else {
+            size = decodedSize;
+        }
+
+        if(size > decodedSize) {
+            SPDLOG_WARN("Requested size 0x{:X} exceeds decoded TKMK00 asset size 0x{:X} at offset 0x{:X}. Reducing to available size.", size, decodedSize, assetPtr);
+            size = decodedSize;
+        }
         return {
             .root = decoded,
             .segment = { decoded->data, size }
         };
     }
-
     if (node["bkzip"]) {
         const auto compressedSize = GetSafeNode<uint32_t>(node, "compressed_size");
         auto decoded = Decode(buffer, fileOffset + offsetFromFile, CompressionType::BKZIP, compressedSize);
@@ -137,11 +171,28 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
         case CompressionType::YAY0:
         case CompressionType::YAY1:
         case CompressionType::MIO0: {
+            offset = ASSET_PTR(offset);
+
             auto decoded = Decode(buffer, fileOffset, type);
-            auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(decoded->size - offsetFromFile);
+            auto availableSize = decoded->size - offset;
+            size_t size;
+
+            if (node["size"]) {
+                size = node["size"].as<size_t>();
+            } else if (manualSize.has_value()) {
+                size = manualSize.value();
+            } else {
+                size = availableSize;
+            }
+
+            if(size > availableSize) {
+                SPDLOG_WARN("Requested size 0x{:X} exceeds decoded asset size 0x{:X} at offset 0x{:X}. Reducing to available size.", size, availableSize, fileOffset);
+                size = availableSize;
+            }
+
             return {
                 .root = decoded,
-                .segment = { decoded->data + offsetFromFile, size }
+                .segment = { decoded->data + offset, size }
             };
         }
         case CompressionType::BKZIP: {
@@ -164,7 +215,21 @@ DecompressedData Decompressor::AutoDecode(YAML::Node& node, std::vector<uint8_t>
         {
             fileOffset = TranslateAddr(offset, false);
             
-            auto size = node["size"] ? node["size"].as<size_t>() : manualSize.value_or(buffer.size() - fileOffset);
+            auto availableSize = buffer.size() - fileOffset;
+            size_t size;
+
+            if (node["size"]) {
+                size = node["size"].as<size_t>();
+            } else if (manualSize.has_value()) {
+                size = manualSize.value();
+            } else {
+                size = availableSize;
+            }
+
+            if(size > availableSize) {
+                SPDLOG_WARN("Requested size 0x{:X} exceeds available asset size 0x{:X} at offset 0x{:X}. Reducing to available size.", size, availableSize, fileOffset);
+                size = availableSize;
+            }
             
             return {
                 .root = nullptr,
@@ -257,7 +322,7 @@ bool Decompressor::IsSegmented(uint32_t addr) {
 
 void Decompressor::ClearCache() {
     for(auto& [key, value] : gCachedChunks){
-        delete value->data;
+        delete[] value->data;
     }
     gCachedChunks.clear();
 }

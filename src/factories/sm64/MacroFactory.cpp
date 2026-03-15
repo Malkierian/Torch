@@ -22,28 +22,17 @@ ExportResult SM64::MacroCodeExporter::Export(std::ostream &write, std::shared_pt
     const auto symbol = GetSafeNode(node, "symbol", entryName);
     const auto offset = GetSafeNode<uint32_t>(node, "offset");
 
-    auto macro = std::static_pointer_cast<SM64::MacroData>(raw);
+    auto macro = std::static_pointer_cast<SM64::MacroDataAlt>(raw);
 
     write << "const MacroObject " << symbol << "[] = {\n";
 
-    for (auto &object : macro->mMacroData) {
-        write << fourSpaceTab;
-
-        if (object.behParam == 0) {
-            write << "MACRO_OBJECT(";
-        } else {
-            write << "MACRO_OBJECT_WITH_BEH_PARAM(";
-        }
-
-        write << object.preset << ", ";
-        write << (object.yaw / 1.41) << ", ";
-        write << object.posX << ", ";
-        write << object.posY << ", ";
-        write << object.posZ;
-
-        if (object.behParam != 0) {
-            write << ", " << object.behParam;
-        }
+    for (size_t i = 0; i < macro->mMacroData.size() - 1; i += 5) {
+        write << fourSpaceTab << (macro->mMacroData[i + 5] == 0 ? "MACRO_OBJECT(" : "MACRO_OBJECT_WITH_BEH_PARAM(");
+        write << "/* preset */ " << static_cast<MacroPresets>(macro->mMacroData[i]) << ", ";
+        write << "/* yaw */ " << macro->mMacroData[i + 1] << ", ";
+        write << "/* posX */ " << macro->mMacroData[i + 2] << ", ";
+        write << "/* posY */ " << macro->mMacroData[i + 3] << ", ";
+        write << "/* posZ */ " << macro->mMacroData[i + 4];
         write << "),\n";
     }
 
@@ -89,39 +78,20 @@ std::optional<std::shared_ptr<IParsedData>> SM64::MacroFactory::parse(std::vecto
 
     std::vector<int16_t> entries;
 
-    while(true) {
+    while(reader.GetBaseAddress() < segment.size) {
         int16_t raw = reader.ReadInt16();
         if(raw == 0x1E){
             break;
         }
 
-        entries.push_back(raw);
+        entries.push_back(raw);                // (Preset/Beh)
+        entries.push_back(reader.ReadInt16()); // Yaw
+        entries.push_back(reader.ReadInt16()); // PosX
+        entries.push_back(reader.ReadInt16()); // PosY
+        entries.push_back(reader.ReadInt16()); // PosZ
     }
 
     entries.push_back(0x1E);
-
-    /*
-       std::vector<MacroObject> macroData;
-       while (true) {
-            int16_t presetID = reader.ReadInt16();
-
-            if(presetID < 0) {
-                break;
-            }
-
-            int16_t yRot = reader.ReadInt16();
-            int16_t xObj = reader.ReadInt16();
-            int16_t yObj = reader.ReadInt16();
-            int16_t zObj = reader.ReadInt16();
-            int16_t params = reader.ReadInt16();
-
-            macroData.emplace_back(static_cast<MacroPresets>(presetID), yRot, xObj, yObj, zObj, params);
-        }
-
-        macroData.emplace_back(MacroPresets::macro_invalid, -1, -1, -1, -1, -1);
-
-        return std::make_shared<SM64::MacroData>(macroData);
-    */
 
     return std::make_shared<SM64::MacroDataAlt>(entries);
 }
