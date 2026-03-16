@@ -5,6 +5,8 @@ include(FetchContent)
 set(CMAKE_POLICY_VERSION_MINIMUM 3.12)
 
 set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_STANDARD 11)
 
 # Set build options
@@ -15,6 +17,7 @@ option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
 option(BUILD_SM64 "Build with Super Mario 64 support" ON)
 option(BUILD_MK64 "Build with Mario Kart 64 support" ON)
 option(BUILD_SF64 "Build with Star Fox 64 support" ON)
+option(BUILD_PM64 "Build with Paper Mario support" ON)
 option(BUILD_FZERO "Build with F-Zero X support" ON)
 option(BUILD_BK64 "Build with Banjo Kazooie support" ON)
 option(BUILD_MARIO_ARTIST "Build with Mario Artist support" ON)
@@ -89,6 +92,12 @@ if(BUILD_MK64)
     add_definitions(-DMK64_SUPPORT)
 else()
     list(FILTER SRC_DIR EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/src/factories/mk64/*")
+endif()
+
+if(BUILD_PM64)
+    add_definitions(-DPM64_SUPPORT)
+else()
+    list(FILTER SRC_DIR EXCLUDE REGEX "${CMAKE_CURRENT_SOURCE_DIR}/src/factories/pm64/*")
 endif()
 
 if(BUILD_FZERO)
@@ -255,7 +264,7 @@ if(USE_STANDALONE)
 	FetchContent_Declare(
 		spdlog
 		GIT_REPOSITORY https://github.com/gabime/spdlog.git
-		GIT_TAG 7e635fca68d014934b4af8a1cf874f63989352b7
+		GIT_TAG 79524ddd08a4ec981b7fea76afd08ee05f83755d
 	)
 
 	FetchContent_MakeAvailable(spdlog)
@@ -284,7 +293,7 @@ else()
         FetchContent_Declare(
             spdlog
             GIT_REPOSITORY https://github.com/gabime/spdlog.git
-            GIT_TAG 7e635fca68d014934b4af8a1cf874f63989352b7
+            GIT_TAG 79524ddd08a4ec981b7fea76afd08ee05f83755d
         )
 
         FetchContent_MakeAvailable(spdlog)

@@ -4,6 +4,7 @@
 #include "spdlog/spdlog.h"
 #include "Companion.h"
 #include <fstream>
+#include <tuple>
 #include "n64/gbi-otr.h"
 
 #ifdef STANDALONE
@@ -297,7 +298,6 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                     if (overlap.has_value()) ptr = flatPtr;
                 }
             }
-
             if(overlap.has_value()){
                 auto ovnode = std::get<1>(overlap.value());
                 auto path = Companion::Instance->RelativePath(std::get<0>(overlap.value()));
@@ -326,15 +326,14 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                 w0 = hash >> 32;
                 w1 = hash & 0xFFFFFFFF;
             } else {
-                auto dec = Companion::Instance->GetNodeByAddr(ptr);
-
+            	auto dec = Companion::Instance->GetSafeStringByAddr(ptr, "VTX");
                 if(dec.has_value()){
-                    uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
+                    uint64_t hash = CRC64(dec.value().c_str());
                     if(hash == 0) {
-                        throw std::runtime_error("Vtx hash is 0 for " + std::get<0>(dec.value()));
+                        throw std::runtime_error("Vtx hash is 0 for " + dec.value());
                     }
 
-                    SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
+                    SPDLOG_INFO("Found vtx: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, dec.value());
 
                     N64Gfx value = gsSPVertexOTR(0, nvtx, didx);
 
@@ -357,7 +356,7 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
         if(opcode == GBI(G_DL)) {
             N64Gfx value;
             auto ptr = w1;
-            auto dec = Companion::Instance->GetNodeByAddr(ptr);
+            auto dec = Companion::Instance->GetSafeStringByAddr(ptr, "GFX");
             auto branch = (w0 >> 16) & G_DL_NO_PUSH;
 
             // Export displaylist segment addresses as an index into a buffer of gfx
@@ -375,8 +374,8 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
             writer.Write(w1);
 
             if(dec.has_value()){
-                uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
-                SPDLOG_INFO("Found display list: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
+                uint64_t hash = CRC64(dec.value().c_str());
+                SPDLOG_INFO("Found display list: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, dec.value());
                 w0 = hash >> 32;
                 w1 = hash & 0xFFFFFFFF;
             } else {
@@ -416,10 +415,10 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                     break;
             }
                         
-            auto res = Companion::Instance->GetNodeByAddr(ptr);
+            auto res = Companion::Instance->GetStringByAddr(ptr);
 
             if(!res.has_value()){
-                res = Companion::Instance->GetNodeByAddr(ptr - 0x8);
+                res = Companion::Instance->GetStringByAddr(ptr - 0x8);
                 hasOffset = res.has_value();
 
                 if(!hasOffset){
@@ -436,8 +435,8 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
             writer.Write(w1);
 
             if(res.has_value()){
-                uint64_t hash = CRC64(std::get<0>(res.value()).c_str());
-                SPDLOG_INFO("Found movemem: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(res.value()));
+                uint64_t hash = CRC64(res.value().c_str());
+                SPDLOG_INFO("Found movemem: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, res.value());
                 w0 = hash >> 32;
                 w1 = hash & 0xFFFFFFFF;
             } else {
@@ -447,7 +446,7 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
 
         if(opcode == GBI(G_SETTIMG)) {
             auto ptr = w1;
-            auto dec = Companion::Instance->GetNodeByAddr(ptr);
+            auto dec = Companion::Instance->GetSafeStringByAddr(ptr, "TEXTURE");
 
             // Export texture segment addresses as segmented addresses
             if ((Companion::Instance->GetGBIMinorVersion() == GBIMinorVersion::Mk64) && ((SEGMENT_NUMBER(w1) == 0x03) || (SEGMENT_NUMBER(w1) == 0x05))) {
@@ -464,29 +463,28 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                 N64Gfx value = gsDPSetTextureOTRImage(C0(21, 3), C0(19, 2), C0(0, 10), ptr);
                 w0 = value.words.w0;
                 w1 = value.words.w1;
+            }
+            writer.Write(w0);
+            writer.Write(w1);
 
-                writer.Write(w0);
-                writer.Write(w1);
+            if(dec.has_value()){
+                uint64_t hash = CRC64(dec.value().c_str());
 
-                if(dec.has_value()){
-                    uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
-
-                    if(hash == 0){
-                        throw std::runtime_error("Texture hash is 0 for " + std::get<0>(dec.value()));
-                    }
-
-                    SPDLOG_INFO("Found texture: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
-                    w0 = hash >> 32;
-                    w1 = hash & 0xFFFFFFFF;
-                } else {
-                    SPDLOG_WARN("Could not find texture at 0x{:X}", ptr);
+                if(hash == 0){
+                    throw std::runtime_error("Texture hash is 0 for " + dec.value());
                 }
+
+                SPDLOG_INFO("Found texture: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, dec.value());
+                w0 = hash >> 32;
+                w1 = hash & 0xFFFFFFFF;
+            } else {
+                SPDLOG_WARN("Could not find texture at 0x{:X}", ptr);
             }
         }
 
         if(opcode == GBI(G_MTX)) {
             auto ptr = w1;
-            auto dec = Companion::Instance->GetNodeByAddr(ptr);
+            auto dec = Companion::Instance->GetSafeStringByAddr(ptr, "MTX");
 
             w0 &= 0x00FFFFFF;
             w0 += G_MTX_OTR << 24;
@@ -496,13 +494,13 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
             writer.Write(w1);
 
             if(dec.has_value()){
-                uint64_t hash = CRC64(std::get<0>(dec.value()).c_str());
+                uint64_t hash = CRC64(dec.value().c_str());
 
                 if(hash == 0){
-                    throw std::runtime_error("Matrix hash is 0 for " + std::get<0>(dec.value()));
+                    throw std::runtime_error("Matrix hash is 0 for " + dec.value());
                 }
 
-                SPDLOG_INFO("Found matrix: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, std::get<0>(dec.value()));
+                SPDLOG_INFO("Found matrix: 0x{:X} Hash: 0x{:X} Path: {}", ptr, hash, dec.value());
                 w0 = hash >> 32;
                 w1 = hash & 0xFFFFFFFF;
             } else {
@@ -541,14 +539,13 @@ std::optional<std::shared_ptr<IParsedData>> DListFactory::parse(std::vector<uint
         }
 
         if(opcode == GBI(G_DL)) {
+            if (C0(16, 1) == G_DL_NO_PUSH) {
+                SPDLOG_INFO("Branch List Command Found");
+                processing = false;
+            }
+
             if (SEGMENT_NUMBER(node["offset"].as<uint32_t>()) == SEGMENT_NUMBER(w1)) {
-
                 std::optional<uint32_t> segment;
-
-                if ((w0 >> 16) & G_DL_NO_PUSH) {
-                    SPDLOG_INFO("Branch List Command Found");
-                    processing = false;
-                }
 
                 YAML::Node gfx;
                 gfx["type"] = "GFX";

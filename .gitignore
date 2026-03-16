@@ -15,3 +15,8 @@ code/
 .vscode/
 tools/
 modding/*
+.cache
+
+# Doxygen output
+docs/html
+docs/latex
