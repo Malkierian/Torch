@@ -252,13 +252,8 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         writer.Write(tex.textureDataOffset);
     }
 
-    // ── Raw texture data blob ────────────────────────────────────────────────
-    // [port] Full contiguous texture data area from the decompressed model.
-    // This preserves data between listed textures that DL commands may reference.
+    // ── Texture data size (for segment 2 allocation at runtime) ─────────────
     writer.Write(model->mTexDataSize);
-    if (model->mTexDataSize > 0 && !model->mRawTexData.empty()) {
-        writer.Write((char*)model->mRawTexData.data(), model->mRawTexData.size());
-    }
 
     // ── Animation list ────────────────────────────────────────────────────────
     if (model->mHasAnimation) {
@@ -314,7 +309,7 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         for (const auto& e : model->mUnk14Entries2) {
             writer.Write(e.unk0);
             writer.Write(e.unk2[0]); writer.Write(e.unk2[1]); writer.Write(e.unk2[2]);
-            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]);
+            writer.Write(e.unk8); writer.Write(e.unk9); writer.Write(e.pad[0]); writer.Write(e.pad[1]);
         }
     }
 
@@ -462,16 +457,52 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             modelData->mTexInfos.push_back(texInfo);
         }
 
-        // [port] Capture the full raw texture data area so the port importer can
-        // reconstruct segment 2 without gaps. DL commands may reference offsets
-        // between listed textures (e.g. RGBA16 data followed by unlisted padding
-        // or shared texture regions) which would otherwise be zeroed out.
         uint32_t texDataStart = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE;
-        if (textureDataSize > 0 && texDataStart + textureDataSize <= segment.size) {
-            modelData->mTexDataSize = textureDataSize;
-            modelData->mRawTexData.assign(
-                segment.data + texDataStart,
-                segment.data + texDataStart + textureDataSize);
+        modelData->mTexDataSize = textureDataSize;
+
+        // [port] Emit each texture as an individual OTEX resource for modding.
+        // Follows the same AddAsset pattern as SpriteFactory.
+        for (uint16_t i = 0; i < textureCount; i++) {
+            const auto& tex = modelData->mTexInfos[i];
+            uint32_t texOffset = texDataStart + tex.textureDataOffset;
+
+            std::string format;
+            uint32_t tlutByteSize = 0;
+
+            switch (tex.type) {
+                case 0x1:  format = "CI4";    tlutByteSize = tex.tlutColors * 2; break;
+                case 0x2:  format = "CI8";    tlutByteSize = tex.tlutColors * 2; break;
+                case 0x4:  format = "RGBA16"; break;
+                case 0x8:  format = "RGBA32"; break;
+                case 0x10: format = "IA8";    break;
+                default: continue;
+            }
+
+            std::string texSymbol = symbol + "_tex_" + std::to_string(i);
+
+            if (tlutByteSize > 0) {
+                YAML::Node tlut;
+                tlut["type"] = "TEXTURE";
+                tlut["offset"] = texOffset;
+                tlut["format"] = "TLUT";
+                tlut["ctype"] = "u16";
+                tlut["colors"] = (int)tex.tlutColors;
+                tlut["symbol"] = texSymbol + "_TLUT";
+                Companion::Instance->AddAsset(tlut);
+            }
+
+            YAML::Node texture;
+            texture["type"] = "TEXTURE";
+            texture["offset"] = texOffset + tlutByteSize;
+            texture["format"] = format;
+            texture["ctype"] = "u16";
+            texture["width"] = (int)tex.width;
+            texture["height"] = (int)tex.height;
+            texture["symbol"] = texSymbol;
+            if (tlutByteSize > 0) {
+                texture["tlut_symbol"] = texSymbol + "_TLUT";
+            }
+            Companion::Instance->AddAsset(texture);
         }
     }
 
@@ -613,7 +644,7 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
             e.unk0 = reader.ReadInt16();
             e.unk2[0] = reader.ReadInt16(); e.unk2[1] = reader.ReadInt16(); e.unk2[2] = reader.ReadInt16();
             e.unk8 = reader.ReadUByte(); e.unk9 = reader.ReadUByte();
-            e.pad[0] = reader.ReadUByte();
+            e.pad[0] = reader.ReadUByte(); e.pad[1] = reader.ReadUByte();
             modelData->mUnk14Entries2.push_back(e);
         }
     }
