@@ -409,6 +409,7 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
                     auto currentFile = this->gCurrentFile;
                     auto currentDirectory = this->gCurrentDirectory;
                     auto currentExternalFiles = this->gCurrentExternalFiles;
+                    auto currentVirtualPath = this->gCurrentVirtualPath;
 
                     this->gCurrentFile = externalFileName;
                     this->gCurrentDirectory = std::filesystem::relative(externalFileName, this->gAssetPath).replace_extension("");
@@ -427,6 +428,7 @@ void Companion::ParseCurrentFileConfig(YAML::Node node, std::atomic<size_t>& ass
                     this->gCurrentFile = currentFile;
                     this->gCurrentDirectory = currentDirectory;
                     this->gCurrentExternalFiles = currentExternalFiles;
+                    this->gCurrentVirtualPath = currentVirtualPath;
                     this->gFileHeader.clear();
                 } else {
                     SPDLOG_INFO("Skipping external file {} as it has already been processed", externalFileName);
@@ -1919,11 +1921,11 @@ std::optional<YAML::Node> Companion::AddAsset(YAML::Node asset) {
     asset["autogen"] = true;
     asset["symbol"] = output;
 
-    auto result = this->RegisterAsset(output, asset);
-
     if(!gCurrentVirtualPath.empty()) {
         asset["path"] = gCurrentVirtualPath;
     }
+
+    auto result = this->RegisterAsset(output, asset);
 
     if(result.has_value()){
         asset["vpath"] = std::get<0>(result.value());
