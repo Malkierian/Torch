@@ -69,20 +69,31 @@ ExportResult BKAssetBinaryExporter::Export(std::ostream &write, std::shared_ptr<
 
     WriteHeader(writer, Torch::ResourceType::Blob, 0);
 
-    // Write asset ID → o2r path manifest.
-    // BlobFactory reads a u32 dataSize first, then dataSize raw bytes.
-    // Manifest payload: u32 count, then for each entry: u32 assetId, s32 pathLen, char path[pathLen]
+    // Derive o2r path prefix from our own replacement path (e.g. "assets/aBKAssetTable" → "assets/")
+    std::string prefix;
+    if (replacement) {
+        auto lastSlash = replacement->rfind('/');
+        if (lastSlash != std::string::npos) {
+            prefix = replacement->substr(0, lastSlash + 1);
+        }
+    }
+
+    // Write asset ID → full o2r path manifest.
+    // Format: u32 count, then for each entry: u32 assetId, s32 pathLen, char path[pathLen]
+    std::vector<std::pair<uint32_t, std::string>> entries;
+    entries.reserve(assetTable->mSymbolMap.size());
     size_t payloadSize = 4; // u32 count
     for (const auto& [id, symbol] : assetTable->mSymbolMap) {
-        payloadSize += 4 + 4 + symbol.size(); // u32 id + s32 pathLen + path bytes
+        std::string fullPath = prefix + symbol;
+        payloadSize += 4 + 4 + fullPath.size();
+        entries.emplace_back(id, std::move(fullPath));
     }
     writer.Write(static_cast<uint32_t>(payloadSize));
 
-    // Manifest payload
-    writer.Write(static_cast<uint32_t>(assetTable->mSymbolMap.size()));
-    for (const auto& [id, symbol] : assetTable->mSymbolMap) {
+    writer.Write(static_cast<uint32_t>(entries.size()));
+    for (const auto& [id, fullPath] : entries) {
         writer.Write(id);
-        writer.Write(symbol);  // writes s32 length prefix + string bytes
+        writer.Write(fullPath);
     }
 
     writer.Finish(write);
