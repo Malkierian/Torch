@@ -196,6 +196,7 @@ class ModelData : public IParsedData {
     // ── Texture list ──────────────────────────────────────────────────────────
     std::vector<TexInfo> mTexInfos;
     uint32_t mTexDataSize = 0;              // size of raw texture data area (for segment 2 allocation)
+    std::vector<uint8_t> mRawTexData;       // full raw texture data blob (includes animated frames)
 
     // ── Animation data ────────────────────────────────────────────────────────
     bool mHasAnimation = false;

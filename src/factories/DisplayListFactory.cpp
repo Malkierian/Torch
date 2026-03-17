@@ -453,9 +453,11 @@ ExportResult DListBinaryExporter::Export(std::ostream &write, std::shared_ptr<IP
                 w1 |= 1;
                 writer.Write(w0);
                 writer.Write(w1);
-            // BK64 uses segment 4 as a runtime animated-texture slot — no static
-            // asset to resolve; pass the segmented address through for the runtime.
-            } else if ((Companion::Instance->GetGBIMinorVersion() == GBIMinorVersion::BK64) && (SEGMENT_NUMBER(w1) == 0x04)) {
+            // BK64 uses segment 4 and segments 0x0B-0x0F as runtime animated-texture
+            // slots — no static asset to resolve; pass the segmented address through.
+            } else if ((Companion::Instance->GetGBIMinorVersion() == GBIMinorVersion::BK64) && (
+                           SEGMENT_NUMBER(w1) == 0x04 ||
+                           (SEGMENT_NUMBER(w1) >= 0x0B && SEGMENT_NUMBER(w1) <= 0x0F))) {
                 w1 |= 1;
                 writer.Write(w0);
                 writer.Write(w1);

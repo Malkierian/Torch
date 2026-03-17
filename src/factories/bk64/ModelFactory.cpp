@@ -252,8 +252,14 @@ ExportResult BK64::ModelBinaryExporter::Export(std::ostream& write, std::shared_
         writer.Write(tex.textureDataOffset);
     }
 
-    // ── Texture data size (for segment 2 allocation at runtime) ─────────────
+    // ── Raw texture data blob ────────────────────────────────────────────────
+    // [port] Full contiguous texture data area from the decompressed model.
+    // This preserves animated texture frames and data between listed textures
+    // that DL commands may reference via segment offsets.
     writer.Write(model->mTexDataSize);
+    if (model->mTexDataSize > 0 && !model->mRawTexData.empty()) {
+        writer.Write((char*)model->mRawTexData.data(), model->mRawTexData.size());
+    }
 
     // ── Animation list ────────────────────────────────────────────────────────
     if (model->mHasAnimation) {
@@ -460,8 +466,17 @@ std::optional<std::shared_ptr<IParsedData>> ModelFactory::parse(std::vector<uint
         uint32_t texDataStart = modelOffset + textureSetupOffset + TEXTURE_HEADER_SIZE + textureCount * TEXTURE_METADATA_SIZE;
         modelData->mTexDataSize = textureDataSize;
 
+        // [port] Capture the full raw texture data area so animated texture frames
+        // and any unlisted data between textures are preserved in the binary.
+        if (textureDataSize > 0 && texDataStart + textureDataSize <= segment.size) {
+            modelData->mRawTexData.assign(
+                segment.data + texDataStart,
+                segment.data + texDataStart + textureDataSize);
+        }
+
         // [port] Emit each texture as an individual OTEX resource for modding.
-        // Follows the same AddAsset pattern as SpriteFactory.
+        // The raw blob (above) preserves animated frames; these OTEX resources
+        // let modders provide alt textures that the importer overlays on top.
         for (uint16_t i = 0; i < textureCount; i++) {
             const auto& tex = modelData->mTexInfos[i];
             uint32_t texOffset = texDataStart + tex.textureDataOffset;
