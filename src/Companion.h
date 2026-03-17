@@ -96,6 +96,7 @@ struct TorchConfig {
     bool debug;
     bool modding;
     bool textureDefines;
+    bool includeAutogen;
 };
 
 struct ParseResultData {
@@ -125,6 +126,7 @@ public:
         this->gConfig.debug = debug;
         this->gConfig.modding = modding;
         this->gConfig.textureDefines = false;
+        this->gConfig.includeAutogen = false;
     }
 
     explicit Companion(std::vector<uint8_t> rom, const ArchiveType otr, const bool debug, const bool modding = false,
@@ -135,6 +137,7 @@ public:
         this->gConfig.debug = debug;
         this->gConfig.modding = modding;
         this->gConfig.textureDefines = false;
+        this->gConfig.includeAutogen = false;
     }
 
     explicit Companion(std::filesystem::path rom, const ArchiveType otr, const bool debug, const std::string& srcDir = "", const std::string& destPath = "") :
@@ -176,7 +179,7 @@ public:
     std::optional<std::string> GetStringByAddr(uint32_t addr);
     std::optional<std::tuple<std::string, YAML::Node>> GetSafeNodeByAddr(const uint32_t addr, std::string type);
     std::optional<std::string> GetSafeStringByAddr(const uint32_t addr, std::string type);
-    std::optional<std::vector<std::tuple<std::string, YAML::Node>>> GetNodesByType(const std::string& type);
+    std::optional<std::vector<std::tuple<std::string, YAML::Node>>> GetNodesByType(const std::string& type, bool includeAutogen = false);
     std::string GetSymbolFromAddr(uint32_t addr, bool validZero = false);
 
     std::optional<std::uint32_t> GetFileOffset(void) const { return this->gCurrentFileOffset; };

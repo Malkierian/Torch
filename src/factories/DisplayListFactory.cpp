@@ -218,7 +218,7 @@ void DebugDisplayList(uint32_t w0, uint32_t w1){
 #endif
 
 std::optional<std::tuple<std::string, YAML::Node>> SearchVtx(uint32_t ptr){
-    auto decs = Companion::Instance->GetNodesByType("VTX");
+    auto decs = Companion::Instance->GetNodesByType("VTX", Companion::Instance->GetConfig().includeAutogen);
 
     if(!decs.has_value()){
         return std::nullopt;
